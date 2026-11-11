@@ -42,6 +42,8 @@ With Grimoire itself installed, Grimoire Counter stays off: Grimoire already has
 
 ## Installing
 
+The built mod is in this repository's `release` folder: `[Ygg] Grimoire Counter-<version>.jar`.
+
 Needs Fabric Loader 0.19.5 or newer, Fabric API and Java 25. Put `[Ygg] Grimoire Counter-<version>.jar` in your
 `mods` folder.
 

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "grimoire_counter",
   "version": "${version}",
-  "name": "Grimoire Counter",
+  "name": "[Ygg] Grimoire Counter",
   "description": "Grimoire's carry counter on its own: slayer bosses, dungeon runs and Kuudra runs counted for each client only when Hypixel itself confirms them, a price list, counting by hand, and the count in party chat.",
   "authors": ["Yggdrasjll"],
   "contact": {},

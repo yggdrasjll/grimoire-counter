@@ -1,0 +1,51 @@
+GRIMOIRE COUNTER LICENSE (ALL RIGHTS RESERVED)
+
+Copyright (c) 2026 Yggdrasjll. All rights reserved.
+
+"Grimoire Counter" means the Grimoire Counter mod for Minecraft: Java Edition (also shown as
+"[Ygg] Grimoire Counter"), the carry counter taken from the Grimoire mod, together with its source code,
+compiled files, textures, icons, data files, texts and documentation, in every version. In this license
+"Grimoire" means Grimoire Counter.
+
+1. Ownership
+   Grimoire was created by Yggdrasjll and is owned only by Yggdrasjll. Every right in it, including copyright,
+   belongs to Yggdrasjll. Nothing in this license transfers ownership of any part of it.
+
+2. No rights unless Yggdrasjll grants them
+   Having a copy of Grimoire does not give you any right to it. You may download, install and use Grimoire only
+   if you received it from Yggdrasjll, or through a channel Yggdrasjll has authorised, and only on the terms
+   Yggdrasjll set when you got it. Without that permission you may not use it.
+
+3. What is not allowed
+   Unless Yggdrasjll has given you written permission first, you may not:
+   a. copy, re-upload, share, sell, rent, lend or otherwise distribute Grimoire or any part of it, including in
+      modpacks, mirrors, archives or collections;
+   b. modify, translate or adapt Grimoire, or make anything based on it;
+   c. decompile, disassemble or reverse engineer Grimoire, or try to obtain its source code, except where the
+      law expressly allows it despite this clause;
+   d. take any part of Grimoire (code, textures, icons, sounds, data, text or design) for use in any other
+      project;
+   e. remove, hide or change this license, any copyright notice, or the author's name;
+   f. present Grimoire, or any part of it, as your own work or as anyone else's.
+
+4. What is allowed without asking
+   Screenshots, videos and streams that show Grimoire being used, and talking about or reviewing it, as long as
+   Grimoire is named as made by Yggdrasjll and no files of it are shared.
+
+5. Other people's things
+   Minecraft belongs to Mojang Studios and Microsoft. Hypixel and SkyBlock are trademarks of Hypixel Inc.
+   Grimoire is unofficial and is not affiliated with, endorsed by or connected to Mojang, Microsoft or Hypixel.
+   Information that Grimoire downloads while it runs (for example from public game and price services) belongs
+   to its owners and is not covered by this license.
+
+6. No warranty
+   Grimoire is provided "as is", without any warranty. As far as the law allows, Yggdrasjll is not liable for
+   any loss or damage that comes from using it, including lost items, coins, data, or action taken against an
+   account. You are responsible for following the rules of the servers you play on.
+
+7. Ending
+   Any permission you were given ends automatically if you break this license. You must then stop using
+   Grimoire and delete every copy you have.
+
+8. Permission
+   For any permission this license does not give, ask Yggdrasjll.

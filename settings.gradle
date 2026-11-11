@@ -1,0 +1,10 @@
+// Grimoire Counter - Copyright (c) 2026 Yggdrasjll. All rights reserved.
+// Not to be copied, modified, decompiled, reused or shared without Yggdrasjll's written permission. See LICENSE.txt.
+pluginManagement {
+	repositories {
+		maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+		mavenCentral()
+		gradlePluginPortal()
+	}
+}
+rootProject.name = 'grimoire-counter'

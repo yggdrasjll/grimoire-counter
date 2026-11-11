@@ -103,6 +103,10 @@ final class CounterSelfTest {
 		// the party message: queued, said once, cleared when the party chat shows it
 		Counter.annQ.clear(); Counter.annSent = null; Counter.D.announce = true; Counter.announceCount(Counter.find(me, "slayer")); check("party message queued", Counter.annQ.size() == 1 && Counter.annQ.peek().equals(me + " 2/5 - Grimoire"));
 		Counter.annSent = Counter.annQ.poll(); Counter.handle("Party > [MVP+] " + me + ": " + me + " 2/5 - Grimoire"); check("seen in the party chat: done with it", Counter.annSent == null); Counter.D.announce = false;
+		Counter.annQ.clear(); Counter.annSent = "Alex 2/5 - Grimoire"; Counter.annTries = 1; check("never shown: said again", Counter.sayAgain());
+		Counter.annQ.add("Steve 4/10 - Grimoire"); check("said again with another client's count waiting", Counter.sayAgain());
+		Counter.annQ.add("Alex 3/5 - Grimoire"); check("not said again when the same player's newer count waits", !Counter.sayAgain());
+		Counter.annQ.clear(); Counter.annTries = 2; check("said twice: not a third time", !Counter.sayAgain()); Counter.annSent = null; Counter.annTries = 0;
 		// the text bars: typing, select all, copy, cut, paste, the arrows, Backspace and Delete
 		CounterScreen cs = new CounterScreen(); CounterScreen.addName = ""; CounterScreen.addAmount = "1"; cs.focusOn("name");
 		int CTRL = org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL, SHIFT = org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;

@@ -617,12 +617,20 @@ public final class Counter {
 		if (mc.getConnection() == null) return;
 		if (annSent != null) { // the one just said: seen in the party chat (heard() clears it), still waited for, said again, or given up
 			if (now - annSentAt < 3500) return;
-			if (annTries < 2 && annQ.isEmpty()) { annTries++; annSentAt = now; lastAnn = now; mc.getConnection().sendCommand("pc " + annSent); return; }
+			if (sayAgain()) { annTries++; annSentAt = now; lastAnn = now; mc.getConnection().sendCommand("pc " + annSent); return; }
 			if (annTries >= 2) info("The party chat never showed the count (said twice): " + annSent, ChatFormatting.GRAY);
 			annSent = null;
 		}
 		if (annQ.isEmpty() || now < annReady || now - lastAnn < 1600) return;
 		annSent = annQ.poll(); annTries = 1; annSentAt = now; lastAnn = now; mc.getConnection().sendCommand("pc " + annSent);
+	}
+	/** Said once and never shown: said again - with other clients' counts waiting behind it too - unless a newer count
+	 *  for the same player is already waiting (that one says more). */
+	static boolean sayAgain() {
+		if (annSent == null || annTries >= 2) return false;
+		int sp = annSent.indexOf(' '); String who = sp > 0 ? annSent.substring(0, sp + 1) : annSent;
+		for (String q : annQ) if (q.startsWith(who)) return false;
+		return true;
 	}
 	/** a chat line: the count just said, come back in the party chat - or Hypixel saying why it can't be said */
 	static void heard(String s) {

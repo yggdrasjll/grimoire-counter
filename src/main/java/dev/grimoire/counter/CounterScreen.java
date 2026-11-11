@@ -137,6 +137,8 @@ public final class CounterScreen extends Screen {
 		bx += btn(g, f, (D.killTime ? "✔ " : "✘ ") + "Kill time", bx, y, mx, my, D.killTime, "How long each slayer boss took, in the count's line in your chat: from its first hit to its death, and since it spawned.", () -> { D.killTime = !D.killTime; Counter.save(); });
 		if (bx + f.width("✔ Floating kill time") + 14 > x + w) { bx = x; y += 20; }
 		bx += btn(g, f, (D.killText ? "✔ " : "✘ ") + "Floating kill time", bx, y, mx, my, D.killText && D.killTime, "The kill time floats where the boss died for a few seconds. Only on your screen. Needs Kill time.", () -> { D.killText = !D.killText; Counter.save(); });
+		if (bx + f.width("✔ Client death warning") + 14 > x + w) { bx = x; y += 20; }
+		bx += btn(g, f, (D.deathWarn ? "✔ " : "✘ ") + "Client death warning", bx, y, mx, my, D.deathWarn, "When a slayer client dies while their boss is up (or their boss vanishes and so do they): a red line in your chat, a title and a sound. The boss is gone and nothing counts: they need to spawn a new one.", () -> { D.deathWarn = !D.deathWarn; Counter.save(); });
 		if (bx + f.width("Move the counter") + 14 > x + w) { bx = x; y += 20; }
 		btn(g, f, "Move the counter", bx, y, mx, my, false, "Drag it where you want it on screen; the wheel sizes it.", () -> { moving = true; focus = null; });
 		y += 26;

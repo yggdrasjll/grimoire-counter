@@ -48,6 +48,7 @@ public final class Counter {
 		public String player, kind, type, tier; // kind: slayer|dungeon|kuudra
 		public int total, done;
 		public long started, last;
+		public transient long diedAt; public transient int deaths; // their deaths with a boss up, this session
 		public transient String lastKill; // "21.3s": how long their last boss took
 		public String label() {
 			return switch (kind) {
@@ -60,7 +61,7 @@ public final class Counter {
 	public static final class Data {
 		public List<Carry> carries = new ArrayList<>();
 		/** the counter on screen · counting by itself · the count in party chat · progress lines in your own chat · carries offered when a client trades you coins */
-		public boolean hud = true, auto = true, announce = false, chatLines = true, tradeSuggest = true, self = true, killTime = true, killText = true;
+		public boolean hud = true, auto = true, announce = false, chatLines = true, tradeSuggest = true, self = true, killTime = true, killText = true, deathWarn = true;
 		public int hudX = 6, hudY = 40; public float hudScale = 1f;
 		/** "type|tier" -> prices in millions per carry, in priority order, e.g. "1.3, 2.3, 2, 1.5" */
 		public Map<String, String> prices = new LinkedHashMap<>();
@@ -235,6 +236,7 @@ public final class Counter {
 		Matcher m; long now = System.currentTimeMillis();
 		heard(s);
 		if (s.contains("SLAYER BOSS") && !s.matches("^(?:\\[[^\\]]+] ?)*\\w{1,16}: .*") && !s.startsWith("Party >") && !s.startsWith("Guild >") && (m = OWN_SPAWN.matcher(s)).find()) { ownType = BOSS_TYPE.get(m.group(1)); ownTier = m.group(2) == null ? "5" : String.valueOf(roman(m.group(2))); ownSpawnAt = now; }
+		if ((m = DEATH.matcher(s)).find() && !m.group(1).equals("You")) { Carry dc = find(m.group(1), "slayer"); if (dc != null) deathLine(dc, m.group(2), now); }
 		if ((m = TRADE_DONE.matcher(s)).find()) { trader = m.group(1); traderAt = now; return; }
 		if (trader != null && now - traderAt < 3000 && (m = TRADE_COINS.matcher(s)).find()) { tradeCoins(trader, m.group(1), m.group(2)); trader = null; return; }
 		if (!D.auto) return;
@@ -397,6 +399,7 @@ public final class Counter {
 			}
 		}
 		drainAnnounce(mc, now);
+		failTick(mc, now);
 		// boss name tags are read every tick (50 ms)
 		boolean anySlayer = false; for (Carry c : D.carries) if (c.kind.equals("slayer")) anySlayer = true;
 		if (!anySlayer || !D.auto) { bosses.clear(); return; }
@@ -462,6 +465,56 @@ public final class Counter {
 			if (now - b.goneAt > 8000) it.remove();
 		}
 	}
+	// ---------- a client who died before their boss did ----------
+	/** "☠ Alex was killed by Voidgloom Seraph." */
+	static final Pattern DEATH = Pattern.compile("^\\s*☠ (?:\\[[^\\]]+]\\s*)?(\\w{1,16}) (.+?)\\.?$");
+	static Boss bossOf(String player) {
+		long now = System.currentTimeMillis(); Long cnt = lastLoot.get(player.toLowerCase(Locale.ROOT));
+		for (Boss b : bosses.values()) if (b.owner != null && b.owner.equalsIgnoreCase(player) && b.goneAt == 0 && now - b.seen < 1500 && !(cnt != null && b.spawnAt > cnt && now - cnt < GHOST_MS)) return b;
+		return null;
+	}
+	/** A death line for one of your slayer clients: a warning if their boss was up (or it's what killed them). */
+	static void deathLine(Carry c, String reason, long now) {
+		boolean byBoss = false; for (String n : BOSS_TYPE.keySet()) if (reason.contains(n)) byBoss = true;
+		boolean bossWasUp = bossOf(c.player) != null; for (Boss o : bosses.values()) if (o.owner != null && o.owner.equalsIgnoreCase(c.player) && now - o.seen < 4000) bossWasUp = true;
+		if (!byBoss && !bossWasUp) return; // died to something else between bosses: nothing lost
+		clientDied(c, reason, true);
+	}
+	/** Bosses that vanished with health left: checked a moment later (a Voidgloom swaps its tag between phases). */
+	static final Map<String, Object[]> failing = new HashMap<>(); // player → {time, pos, health %}
+	static void maybeFailed(Minecraft mc, Boss b, long now) {
+		if (b.owner == null || b.pos == null || burrowed(b) || mc.player.position().distanceTo(b.pos) > 32) return;
+		Carry c = find(b.owner, "slayer"); if (c == null) return;
+		int pct = b.firstHp > 0 && b.lastHp >= 0 ? (int) Math.round(100 * b.lastHp / b.firstHp) : -1;
+		failing.put(c.player.toLowerCase(Locale.ROOT), new Object[]{now, b.pos, pct});
+	}
+	static void failTick(Minecraft mc, long now) {
+		if (failing.isEmpty()) return;
+		for (Iterator<Map.Entry<String, Object[]>> it = failing.entrySet().iterator(); it.hasNext(); ) {
+			var e = it.next(); long at = (Long) e.getValue()[0]; if (now - at < 1500) continue;
+			it.remove();
+			Carry c = find(e.getKey(), "slayer"); if (c == null || now - c.diedAt < 8000) continue; // the death line already warned
+			if (bossOf(c.player) != null) continue; // the same boss under a new tag
+			Vec3 pos = (Vec3) e.getValue()[1]; boolean near = false;
+			for (var p : mc.level.players()) if (p.getGameProfile().name().equalsIgnoreCase(c.player) && p.isAlive() && p.position().distanceTo(pos) < 40) near = true;
+			if (near) continue; // they're still there: the quest ran out of time, or it isn't a death
+			int pct = (Integer) e.getValue()[2];
+			clientDied(c, "their boss vanished" + (pct >= 0 ? " with " + pct + "% health left" : "") + " and so did they (died, or left the lobby)", false);
+		}
+	}
+	static void clientDied(Carry c, String reason, boolean sure) {
+		long now = System.currentTimeMillis(); if (now - c.diedAt < 5000) return;
+		c.diedAt = now; c.deaths++;
+		if (!D.deathWarn) return;
+		Minecraft mc = Minecraft.getInstance(); if (mc.player == null) return;
+		mc.player.sendSystemMessage(Component.literal("[Grimoire] ").withStyle(ChatFormatting.LIGHT_PURPLE)
+			.append(Component.literal("☠ " + c.player + (sure ? " died: " : ": ") + reason + ". ").withStyle(ChatFormatting.RED, ChatFormatting.BOLD))
+			.append(Component.literal("Their " + c.label() + " is gone, nothing counted: they need to spawn a new one" + (c.deaths > 1 ? " (" + c.deaths + " deaths this carry)" : "") + ".").withStyle(ChatFormatting.GRAY)));
+		try { var hud = mc.gui.hud; hud.setTimes(4, 50, 16); hud.setTitle(Component.literal("☠ CLIENT DIED").withStyle(ChatFormatting.RED, ChatFormatting.BOLD)); hud.setSubtitle(Component.literal(c.player + " · " + c.label()).withStyle(ChatFormatting.GOLD)); } catch (Throwable ignored) {}
+		sound(net.minecraft.sounds.SoundEvents.ANVIL_LAND, 1.3f, 0.55f); sound(net.minecraft.sounds.SoundEvents.NOTE_BLOCK_BASS.value(), 0.6f, 1f);
+	}
+	static void sound(net.minecraft.sounds.SoundEvent e, float pitch, float vol) { try { Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(e, pitch, vol)); } catch (Throwable ignored) {} }
+
 	/** Whether this client's slayer boss is up right now (the counter says so). */
 	public static boolean bossUp(Carry c) {
 		if (c == null || !c.kind.equals("slayer")) return false;
@@ -491,7 +544,7 @@ public final class Counter {
 	 *  has only one boss at a time, so theirs must have appeared after their last count). */
 	static void died(Minecraft mc, Boss b, long now) {
 		if (b.owner == null || b.counted > 0 || b.type == null || b.pos == null) return;
-		if (!killed(mc, b, now)) return; // gone with health left: despawned (quest failed, they died), or you walked off
+		if (!killed(mc, b, now)) { if (!b.guessed) maybeFailed(mc, b, now); return; } // gone with health left: despawned (quest failed, they died), or you walked off
 		if (mc.player.position().distanceTo(b.pos) > 48) return;
 		Carry booked = null, any = null;
 		for (Carry k : D.carries) if (k.player.equalsIgnoreCase(b.owner) && k.kind.equals("slayer")) { if (any == null) any = k; if (b.type.equals(k.type) && (b.tier == null || b.tier.equals(k.tier))) { booked = k; break; } }

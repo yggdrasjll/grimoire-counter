@@ -25,6 +25,8 @@ clicks, aims or moves for you.
   are offered in chat, one click to add them; each carry shows what it is worth.
 - **Kill time**: how long each slayer boss took - from its first hit to its death, and since it spawned - in the
   count's line in your chat, and floating where the boss died for a few seconds (each has its own switch).
+- **Client death warning**: when a slayer client dies while their boss is up - a red line in your chat, a title and
+  a sound - so you know the boss is gone and they need to spawn a new one.
 - **The count in party chat** (off until you turn it on): `Name 3/10 - Grimoire`, each time a carry counts.
 - **The counter on screen**, which you can drag anywhere and size.
 - A switch for each of these.

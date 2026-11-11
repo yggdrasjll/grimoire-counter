@@ -115,6 +115,14 @@ final class CounterSelfTest {
 		check("own boss: timed from the spawn line", done(me) == 1 && kc.lastKill != null && kc.lastKill.startsWith("30."));
 		Counter.lastLoot.clear(); Counter.D.killTime = false; kc.lastKill = null; Counter.handle("  SLAYER BOSS! The Inferno Demonlord IV spawned!"); Counter.ownSpawnAt -= 30_000; Counter.handle("  SLAYER QUEST COMPLETE!");
 		check("kill time switched off: counted, not timed", done(me) == 2 && kc.lastKill == null); Counter.D.killTime = true;
+		fresh(); Counter.lastLoot.clear(); Counter.bosses.clear(); Counter.Carry dc = Counter.add("Alex", Counter.parse("void", "4"), 5);
+		Counter.handle(" ☠ Alex was killed by Voidgloom Seraph."); check("client killed by their boss: warned", dc.deaths == 1 && dc.diedAt > 0 && done("Alex") == 0);
+		Counter.handle(" ☠ Alex was killed by Voidgloom Seraph."); check("the same death isn't warned twice", dc.deaths == 1);
+		dc.diedAt = 0; Counter.handle(" ☠ Alex fell into the void."); check("a death with no boss up isn't one", dc.deaths == 1);
+		Counter.Boss ub = new Counter.Boss(); ub.owner = "Alex"; ub.type = "void"; ub.tier = "4"; ub.seen = System.currentTimeMillis(); ub.spawnAt = ub.seen - 9000; Counter.bosses.put(-77, ub);
+		Counter.handle(" ☠ Alex fell into the void."); check("any death with their boss up: warned", dc.deaths == 2); Counter.bosses.clear();
+		dc.diedAt = 0; Counter.handle(" ☠ Steve was killed by Voidgloom Seraph."); check("someone else's death isn't the client's", dc.deaths == 2);
+		Counter.handle("Party > [MVP+] Alex: ☠ Alex was killed by Voidgloom Seraph."); check("a player typing a death line isn't one", dc.deaths == 2);
 		// the text bars: typing, select all, copy, cut, paste, the arrows, Backspace and Delete
 		CounterScreen cs = new CounterScreen(); CounterScreen.addName = ""; CounterScreen.addAmount = "1"; cs.focusOn("name");
 		int CTRL = org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL, SHIFT = org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;

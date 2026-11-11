@@ -107,6 +107,14 @@ final class CounterSelfTest {
 		Counter.annQ.add("Steve 4/10 - Grimoire"); check("said again with another client's count waiting", Counter.sayAgain());
 		Counter.annQ.add("Alex 3/5 - Grimoire"); check("not said again when the same player's newer count waits", !Counter.sayAgain());
 		Counter.annQ.clear(); Counter.annTries = 2; check("said twice: not a third time", !Counter.sayAgain()); Counter.annSent = null; Counter.annTries = 0;
+		check("kill time in tenths", Counter.secs(21340).equals("21.3s") && Counter.secs(65230).equals("1m 05.2s"));
+		check("kill note: hit and spawn", Counter.killNote(25400, 21300).equals("⏱ 21.3s (25.4s since it spawned)"));
+		check("kill note: spawn only", Counter.killNote(25400, 0).equals("⏱ 25.4s since it spawned")); check("kill note: nothing seen", Counter.killNote(0, 0).isEmpty());
+		fresh(); Counter.lastLoot.clear(); Counter.bosses.clear(); Counter.Carry kc = Counter.add(me, Counter.parse("blaze", "4"), 5);
+		Counter.handle("  SLAYER BOSS! The Inferno Demonlord IV spawned!"); Counter.ownSpawnAt -= 30_000; Counter.handle("  SLAYER QUEST COMPLETE!");
+		check("own boss: timed from the spawn line", done(me) == 1 && kc.lastKill != null && kc.lastKill.startsWith("30."));
+		Counter.lastLoot.clear(); Counter.D.killTime = false; kc.lastKill = null; Counter.handle("  SLAYER BOSS! The Inferno Demonlord IV spawned!"); Counter.ownSpawnAt -= 30_000; Counter.handle("  SLAYER QUEST COMPLETE!");
+		check("kill time switched off: counted, not timed", done(me) == 2 && kc.lastKill == null); Counter.D.killTime = true;
 		// the text bars: typing, select all, copy, cut, paste, the arrows, Backspace and Delete
 		CounterScreen cs = new CounterScreen(); CounterScreen.addName = ""; CounterScreen.addAmount = "1"; cs.focusOn("name");
 		int CTRL = org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL, SHIFT = org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;

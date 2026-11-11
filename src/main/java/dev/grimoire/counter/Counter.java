@@ -48,6 +48,7 @@ public final class Counter {
 		public String player, kind, type, tier; // kind: slayer|dungeon|kuudra
 		public int total, done;
 		public long started, last;
+		public transient String lastKill; // "21.3s": how long their last boss took
 		public String label() {
 			return switch (kind) {
 				case "slayer" -> SLAYER_NAMES.getOrDefault(type, type) + " T" + tier;
@@ -59,7 +60,7 @@ public final class Counter {
 	public static final class Data {
 		public List<Carry> carries = new ArrayList<>();
 		/** the counter on screen · counting by itself · the count in party chat · progress lines in your own chat · carries offered when a client trades you coins */
-		public boolean hud = true, auto = true, announce = false, chatLines = true, tradeSuggest = true, self = true;
+		public boolean hud = true, auto = true, announce = false, chatLines = true, tradeSuggest = true, self = true, killTime = true, killText = true;
 		public int hudX = 6, hudY = 40; public float hudScale = 1f;
 		/** "type|tier" -> prices in millions per carry, in priority order, e.g. "1.3, 2.3, 2, 1.5" */
 		public Map<String, String> prices = new LinkedHashMap<>();
@@ -216,13 +217,19 @@ public final class Counter {
 		String me = mc.player != null ? mc.player.getGameProfile().name() : mc.getUser().getName(); Carry c = find(me, "slayer"); if (c == null || c.done >= c.total) return;
 		String lk = me.toLowerCase(Locale.ROOT); Long last = lastLoot.get(lk); if (last != null && now - last < GHOST_MS) return;
 		// which boss it was: the "SLAYER BOSS! The … spawned!" line you were sent when it came, else the quest on your scoreboard
-		if (ownType != null && now - ownSpawnAt < 1_200_000L) { String type = ownType, tier = ownTier; ownType = null;
+		long spawned = 0;
+		if (ownType != null && now - ownSpawnAt < 1_200_000L) { String type = ownType, tier = ownTier; ownType = null; spawned = ownSpawnAt;
 			if (!(type.equals(c.type) && tier.equals(c.tier))) { progress("Your boss wasn't counted: it was a " + SLAYER_NAMES.getOrDefault(type, type) + " T" + tier + ", not your " + c.label() + ".", ChatFormatting.GRAY); return; } }
 		else if (mc.level != null) try { for (String line : sidebar(mc)) { Matcher q = OWN_QUEST.matcher(line.trim()); if (!q.find()) continue;
 			String type = BOSS_TYPE.get(q.group(1)), tier = q.group(2) == null ? "5" : String.valueOf(roman(q.group(2)));
 			if (type != null && !(type.equals(c.type) && tier.equals(c.tier))) { progress("Your boss wasn't counted: it was a " + SLAYER_NAMES.getOrDefault(type, type) + " T" + tier + ", not your " + c.label() + ".", ChatFormatting.GRAY); return; }
 			break; } } catch (Throwable ignored) {}
-		lastLoot.put(lk, now); count(c, "");
+		// how long it took: from the line that said it spawned (else from when its name tag was first seen) and from its first hit
+		Boss mine = null; for (Boss b : bosses.values()) if (b.owner != null && b.owner.equalsIgnoreCase(me) && now - b.seen < 6000 && (mine == null || b.seen > mine.seen)) mine = b;
+		long kill = mine != null ? mine.seen : now; if (spawned == 0 && mine != null) spawned = mine.spawnAt;
+		long sk = spawned > 0 && kill > spawned ? kill - spawned : 0, hk = mine != null && mine.hitAt > 0 && kill >= mine.hitAt ? kill - mine.hitAt : 0;
+		if (mine != null) { mine.counted = now; if (mine.pos != null && (sk > 0 || hk > 0)) KillText.show(mine.pos, secs(hk > 0 ? hk : sk)); }
+		lastLoot.put(lk, now); count(c, "", sk, hk);
 	}
 	static void handle(String s) {
 		Matcher m; long now = System.currentTimeMillis();
@@ -377,6 +384,7 @@ public final class Counter {
 	// ---------- tick: scoreboard + boss name tags ----------
 	public static void tick(Minecraft mc) {
 		long now = System.currentTimeMillis();
+		KillText.tick();
 		flush(false);
 		if (mc.level == null || mc.player == null) return;
 		if (mc.level != lastLevel) { lastLevel = mc.level; bosses.clear(); } // a new world: every tag vanished at once, nothing died
@@ -498,7 +506,9 @@ public final class Counter {
 		if (booked == null) { b.counted = now; refuse(any, "it was a " + SLAYER_NAMES.getOrDefault(b.type, b.type) + " T" + b.tier + ", not their " + any.label(), now); return; }
 		if (booked.done >= booked.total) return;
 		b.counted = now; lastLoot.put(lk, now);
-		count(booked, "");
+		long kill = b.seen, sk = b.spawnAt > 0 && kill > b.spawnAt ? kill - b.spawnAt : 0, hk = b.hitAt > 0 && kill >= b.hitAt ? kill - b.hitAt : 0; // b.seen: the last moment it was alive
+		if (sk > 0 || hk > 0) KillText.show(b.pos, secs(hk > 0 ? hk : sk)); // where it died: first hit → kill (spawn → kill if no hit was seen)
+		count(booked, "", sk, hk);
 	}
 	/** Your left click on a mob next to a followed boss counts as the first damage (the health drop also does). */
 	public static void onAttack(Entity target) {
@@ -594,7 +604,10 @@ public final class Counter {
 	}
 
 	// ---------- one more for a client ----------
-	static void count(Carry c, String note) {
+	static void count(Carry c, String note) { count(c, note, 0, 0); }
+	/** sk, hk: how long the boss took, in ms, since it spawned and since its first hit (0 = not seen) */
+	static void count(Carry c, String note, long sk, long hk) {
+		String kill = D.killTime ? killNote(sk, hk) : ""; if (!kill.isEmpty()) { c.lastKill = secs(hk > 0 ? hk : sk); note = " · " + kill + note; }
 		long now = System.currentTimeMillis();
 		if (c.started == 0) c.started = now;
 		long took = c.last == 0 ? 0 : now - c.last; c.last = now;
@@ -647,6 +660,16 @@ public final class Counter {
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.player == null) return;
 		mc.player.sendSystemMessage(prefix().append(Component.literal(s).withStyle(col)));
+	}
+	/** 8.3s · 25.4s · 1m 05.2s */
+	public static String secs(long ms) {
+		long t = Math.round(ms / 100.0); // tenths
+		return t < 600 ? (t / 10) + "." + (t % 10) + "s" : (t / 600) + "m " + String.format(Locale.ROOT, "%02d", t % 600 / 10) + "." + (t % 10) + "s";
+	}
+	/** "⏱ 21.3s (25.4s since it spawned)": first hit → kill, and spawn → kill; "" when neither was seen */
+	static String killNote(long sk, long hk) {
+		if (hk > 0) return "⏱ " + secs(hk) + (sk > hk ? " (" + secs(sk) + " since it spawned)" : "");
+		return sk > 0 ? "⏱ " + secs(sk) + " since it spawned" : "";
 	}
 	public static String dur(long ms) { long s = ms / 1000; return s >= 3600 ? (s / 3600) + "h " + (s % 3600 / 60) + "m" : s >= 60 ? (s / 60) + "m " + (s % 60) + "s" : s + "s"; }
 	/** 1.3M · 650k · 12.5B */

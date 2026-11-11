@@ -23,6 +23,8 @@ clicks, aims or moves for you.
 - **A price list** with a row for every carry it counts (every slayer tier, every Kuudra tier, Entrance to M7): your
   prices in millions per carry. When a client trades you coins, the carries that amount buys
   are offered in chat, one click to add them; each carry shows what it is worth.
+- **Kill time**: how long each slayer boss took - from its first hit to its death, and since it spawned - in the
+  count's line in your chat, and floating where the boss died for a few seconds (each has its own switch).
 - **The count in party chat** (off until you turn it on): `Name 3/10 - Grimoire`, each time a carry counts.
 - **The counter on screen**, which you can drag anywhere and size.
 - A switch for each of these.

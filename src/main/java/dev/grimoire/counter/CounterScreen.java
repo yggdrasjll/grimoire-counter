@@ -133,6 +133,10 @@ public final class CounterScreen extends Screen {
 		bx += btn(g, f, (D.chatLines ? "✔ " : "✘ ") + "Progress lines in chat", bx, y, mx, my, D.chatLines, "A line in your own chat for each count, a run that started, and a run that wasn't the booked one. Only you see them.", () -> { D.chatLines = !D.chatLines; Counter.save(); });
 		if (bx + f.width("✔ Carries from trades") + 14 > x + w) { bx = x; y += 20; }
 		bx += btn(g, f, (D.tradeSuggest ? "✔ " : "✘ ") + "Carries from trades", bx, y, mx, my, D.tradeSuggest, "When someone trades you coins, the carries your price list says that amount buys are offered in chat: one click adds them.", () -> { D.tradeSuggest = !D.tradeSuggest; Counter.save(); });
+		if (bx + f.width("✔ Kill time") + 14 > x + w) { bx = x; y += 20; }
+		bx += btn(g, f, (D.killTime ? "✔ " : "✘ ") + "Kill time", bx, y, mx, my, D.killTime, "How long each slayer boss took, in the count's line in your chat: from its first hit to its death, and since it spawned.", () -> { D.killTime = !D.killTime; Counter.save(); });
+		if (bx + f.width("✔ Floating kill time") + 14 > x + w) { bx = x; y += 20; }
+		bx += btn(g, f, (D.killText ? "✔ " : "✘ ") + "Floating kill time", bx, y, mx, my, D.killText && D.killTime, "The kill time floats where the boss died for a few seconds. Only on your screen. Needs Kill time.", () -> { D.killText = !D.killText; Counter.save(); });
 		if (bx + f.width("Move the counter") + 14 > x + w) { bx = x; y += 20; }
 		btn(g, f, "Move the counter", bx, y, mx, my, false, "Drag it where you want it on screen; the wheel sizes it.", () -> { moving = true; focus = null; });
 		y += 26;

@@ -138,6 +138,12 @@ final class CounterSelfTest {
 		Counter.annQ.clear(); Counter.claim("Alex"); check("a count by hand that isn't a death: no words", Counter.annQ.isEmpty());
 		Counter.D.deathMsg = ""; dc.diedAt = 0; Counter.lastLoot.clear(); Counter.handle(" ☠ Alex was killed by Voidgloom Seraph."); Counter.claim("Alex"); check("no words set and party count off: nothing said", Counter.annQ.isEmpty());
 		Counter.annSent = "gg / Alex 2/5 - Grimoire"; Counter.annTries = 1; Counter.annQ.add("Alex 3/5 - Grimoire"); check("your words in front: still known as Alex's count", !Counter.sayAgain()); Counter.annQ.clear(); Counter.annSent = null; Counter.annTries = 0;
+		fresh(); Counter.lastLoot.clear(); Counter.bosses.clear(); Counter.upSince.clear(); Counter.spawnSaidAt.clear(); Counter.spawnSaid = null; Counter.add("Alex", Counter.parse("void", "4"), 5); Counter.add("Steve", Counter.parse("blaze", "3"), 5);
+		long t0 = System.currentTimeMillis(); Counter.Boss sb = new Counter.Boss(); sb.owner = "Alex"; sb.type = "void"; sb.tier = "4"; sb.seen = t0; sb.spawnAt = t0; Counter.bosses.put(-80, sb);
+		Counter.spawnTick(t0); check("a client's boss spawned: said, with whose it is", "Alex's Voidgloom T4 spawned.".equals(Counter.spawnSaid));
+		Counter.spawnSaid = null; Counter.spawnTick(t0 + 50); check("said once while it's up", Counter.spawnSaid == null);
+		Counter.bosses.clear(); Counter.spawnTick(t0 + 100); Counter.bosses.put(-81, sb); Counter.spawnTick(t0 + 150); check("its tag swapped: not said again", Counter.spawnSaid == null);
+		Counter.D.spawnLine = false; Counter.bosses.clear(); Counter.spawnTick(t0 + 200); Counter.spawnSaidAt.clear(); Counter.bosses.put(-82, sb); Counter.spawnTick(t0 + 250); check("switched off: not said", Counter.spawnSaid == null); Counter.D.spawnLine = true; Counter.bosses.clear(); Counter.upSince.clear();
 		// the text bars: typing, select all, copy, cut, paste, the arrows, Backspace and Delete
 		CounterScreen cs = new CounterScreen(); CounterScreen.addName = ""; CounterScreen.addAmount = "1"; cs.focusOn("name");
 		int CTRL = org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL, SHIFT = org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;

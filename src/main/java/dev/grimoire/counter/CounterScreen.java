@@ -137,6 +137,8 @@ public final class CounterScreen extends Screen {
 		bx += btn(g, f, (D.killTime ? "✔ " : "✘ ") + "Kill time", bx, y, mx, my, D.killTime, "How long each slayer boss took, as a line in your chat with each count: since it spawned, and since its first hit.", () -> { D.killTime = !D.killTime; Counter.save(); });
 		if (bx + f.width("✔ Floating kill time") + 14 > x + w) { bx = x; y += 20; }
 		bx += btn(g, f, (D.killText ? "✔ " : "✘ ") + "Floating kill time", bx, y, mx, my, D.killText && D.killTime, "The kill time floats where the boss died for a few seconds. Only on your screen. Needs Kill time.", () -> { D.killText = !D.killText; Counter.save(); });
+		if (bx + f.width("✔ Boss spawned line") + 14 > x + w) { bx = x; y += 20; }
+		bx += btn(g, f, (D.spawnLine ? "✔ " : "✘ ") + "Boss spawned line", bx, y, mx, my, D.spawnLine, "A line in your chat when a slayer client's boss has spawned, saying whose it is. Only you see it.", () -> { D.spawnLine = !D.spawnLine; Counter.save(); });
 		if (bx + f.width("✔ Client death warning") + 14 > x + w) { bx = x; y += 20; }
 		bx += btn(g, f, (D.deathWarn ? "✔ " : "✘ ") + "Client death warning", bx, y, mx, my, D.deathWarn, "When a slayer client dies while their boss is up (or their boss vanishes and so do they): a red line in your chat, a title and a sound. The boss is gone and nothing counts: they need to spawn a new one - or press [count 1 anyway] on that line.", () -> { D.deathWarn = !D.deathWarn; Counter.save(); });
 		if (bx + f.width("Move the counter") + 14 > x + w) { bx = x; y += 20; }

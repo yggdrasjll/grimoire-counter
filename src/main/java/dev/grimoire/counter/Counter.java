@@ -61,7 +61,7 @@ public final class Counter {
 	public static final class Data {
 		public List<Carry> carries = new ArrayList<>();
 		/** the counter on screen · counting by itself · the count in party chat · progress lines in your own chat · carries offered when a client trades you coins */
-		public boolean hud = true, auto = true, announce = false, chatLines = true, tradeSuggest = true, self = true, killTime = true, killText = true, deathWarn = true;
+		public boolean hud = true, auto = true, announce = false, chatLines = true, tradeSuggest = true, self = true, killTime = true, killText = true, deathWarn = true, spawnLine = true;
 		/** said in party chat, with the count behind it, when you count a boss its client died on ("" = nothing extra) */
 		public String deathMsg = "";
 		public int hudX = 6, hudY = 40; public float hudScale = 1f;
@@ -469,6 +469,7 @@ public final class Counter {
 			if (b.goneAt == 0) { b.goneAt = b.seen; died(mc, b, now); }
 			if (now - b.goneAt > 8000) it.remove();
 		}
+		spawnTick(now);
 	}
 	// ---------- a client who died before their boss did ----------
 	/** "☠ Alex was killed by Voidgloom Seraph." */
@@ -539,6 +540,24 @@ public final class Counter {
 		sound(net.minecraft.sounds.SoundEvents.ANVIL_LAND, 1.3f, 0.55f); sound(net.minecraft.sounds.SoundEvents.NOTE_BLOCK_BASS.value(), 0.6f, 1f);
 	}
 	static void sound(net.minecraft.sounds.SoundEvent e, float pitch, float vol) { try { Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(e, pitch, vol)); } catch (Throwable ignored) {} }
+
+	// ---------- a client's boss has spawned ----------
+	static final Map<String, Long> upSince = new HashMap<>(), spawnSaidAt = new HashMap<>(); static String spawnSaid = null;
+	/** One line in your chat when a client's boss comes: whose it is, nothing else. A tag that flickers or swaps doesn't say it twice. */
+	static void spawnTick(long now) {
+		for (Carry c : D.carries) {
+			if (!c.kind.equals("slayer")) continue;
+			String k = c.player.toLowerCase(Locale.ROOT); boolean up = bossOf(c.player) != null;
+			if (!up) { upSince.remove(k); continue; }
+			if (upSince.containsKey(k)) continue;
+			upSince.put(k, now);
+			Long last = spawnSaidAt.get(k), counted = lastLoot.get(k);
+			boolean fresh = last == null || now - last > 10_000 || (counted != null && counted > last) || c.diedAt > last;
+			if (!fresh || (counted != null && now - counted < GHOST_MS)) continue;
+			spawnSaidAt.put(k, now);
+			if (D.spawnLine) { spawnSaid = poss(c.player) + " " + c.label() + " spawned."; info(spawnSaid, ChatFormatting.GOLD); }
+		}
+	}
 
 	/** Whether this client's slayer boss is up right now (the counter says so). */
 	public static boolean bossUp(Carry c) {

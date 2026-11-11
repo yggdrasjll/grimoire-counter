@@ -108,8 +108,10 @@ final class CounterSelfTest {
 		Counter.annQ.add("Alex 3/5 - Grimoire"); check("not said again when the same player's newer count waits", !Counter.sayAgain());
 		Counter.annQ.clear(); Counter.annTries = 2; check("said twice: not a third time", !Counter.sayAgain()); Counter.annSent = null; Counter.annTries = 0;
 		check("kill time in tenths", Counter.secs(21340).equals("21.3s") && Counter.secs(65230).equals("1m 05.2s"));
-		check("kill note: hit and spawn", Counter.killNote(25400, 21300).equals("⏱ 21.3s (25.4s since it spawned)"));
-		check("kill note: spawn only", Counter.killNote(25400, 0).equals("⏱ 25.4s since it spawned")); check("kill note: nothing seen", Counter.killNote(0, 0).isEmpty());
+		Counter.Carry kl = new Counter.Carry(); kl.player = "Alex"; kl.kind = "slayer"; kl.type = "void"; kl.tier = "4";
+		check("kill line: both", Counter.killLine(kl, 25400, 21300).equals("⏱ Alex's Voidgloom T4: 25.4s since spawn · 21.3s since first hit"));
+		check("kill line: spawn only", Counter.killLine(kl, 25400, 0).equals("⏱ Alex's Voidgloom T4: 25.4s since spawn · first hit not seen"));
+		check("kill line: hit only", Counter.killLine(kl, 0, 21300).equals("⏱ Alex's Voidgloom T4: spawn not seen · 21.3s since first hit"));
 		fresh(); Counter.lastLoot.clear(); Counter.bosses.clear(); Counter.Carry kc = Counter.add(me, Counter.parse("blaze", "4"), 5);
 		Counter.handle("  SLAYER BOSS! The Inferno Demonlord IV spawned!"); Counter.ownSpawnAt -= 30_000; Counter.handle("  SLAYER QUEST COMPLETE!");
 		check("own boss: timed from the spawn line", done(me) == 1 && kc.lastKill != null && kc.lastKill.startsWith("30."));
@@ -123,6 +125,19 @@ final class CounterSelfTest {
 		Counter.handle(" ☠ Alex fell into the void."); check("any death with their boss up: warned", dc.deaths == 2); Counter.bosses.clear();
 		dc.diedAt = 0; Counter.handle(" ☠ Steve was killed by Voidgloom Seraph."); check("someone else's death isn't the client's", dc.deaths == 2);
 		Counter.handle("Party > [MVP+] Alex: ☠ Alex was killed by Voidgloom Seraph."); check("a player typing a death line isn't one", dc.deaths == 2);
+		// the client dies after their boss did
+		dc.diedAt = 0; Counter.lastLoot.put("alex", System.currentTimeMillis()); Counter.handle(" ☠ Alex was killed by Voidgloom Seraph."); check("died after their boss counted: no warning", dc.deaths == 2);
+		Counter.lastLoot.clear(); Counter.Boss db = new Counter.Boss(); db.owner = "Alex"; db.type = "void"; db.tier = "4"; db.seen = System.currentTimeMillis(); db.spawnAt = db.seen - 9000; db.dyingAt = db.seen; Counter.bosses.put(-78, db);
+		Counter.handle(" ☠ Alex burned to death."); check("died while their boss was dying: held back", dc.deaths == 2 && Counter.dyingDeaths.containsKey("alex"));
+		Counter.lastLoot.put("alex", System.currentTimeMillis()); Counter.deathTick(System.currentTimeMillis() + 2000); check("that boss counted: never warned", dc.deaths == 2 && Counter.dyingDeaths.isEmpty());
+		Counter.lastLoot.clear(); Counter.handle(" ☠ Alex burned to death."); Counter.deathTick(System.currentTimeMillis() + 2000); check("that boss didn't count: warned after all", dc.deaths == 3);
+		Counter.bosses.clear(); int before = done("Alex"); check("[count 1 anyway] counts one", Counter.claim("Alex") && done("Alex") == before + 1);
+		Counter.annQ.clear(); Counter.annSent = null; Counter.D.announce = false; Counter.D.deathMsg = "you died, counted anyway"; dc.diedAt = 0; Counter.lastLoot.clear();
+		Counter.handle(" ☠ Alex was killed by Voidgloom Seraph."); before = done("Alex"); Counter.claim("Alex");
+		check("your words, then the count", done("Alex") == before + 1 && Counter.annQ.size() == 1 && Counter.annQ.peek().equals("you died, counted anyway / Alex " + (before + 1) + "/5 - Grimoire"));
+		Counter.annQ.clear(); Counter.claim("Alex"); check("a count by hand that isn't a death: no words", Counter.annQ.isEmpty());
+		Counter.D.deathMsg = ""; dc.diedAt = 0; Counter.lastLoot.clear(); Counter.handle(" ☠ Alex was killed by Voidgloom Seraph."); Counter.claim("Alex"); check("no words set and party count off: nothing said", Counter.annQ.isEmpty());
+		Counter.annSent = "gg / Alex 2/5 - Grimoire"; Counter.annTries = 1; Counter.annQ.add("Alex 3/5 - Grimoire"); check("your words in front: still known as Alex's count", !Counter.sayAgain()); Counter.annQ.clear(); Counter.annSent = null; Counter.annTries = 0;
 		// the text bars: typing, select all, copy, cut, paste, the arrows, Backspace and Delete
 		CounterScreen cs = new CounterScreen(); CounterScreen.addName = ""; CounterScreen.addAmount = "1"; cs.focusOn("name");
 		int CTRL = org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL, SHIFT = org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;

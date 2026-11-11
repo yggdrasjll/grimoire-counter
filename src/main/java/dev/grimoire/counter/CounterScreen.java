@@ -86,8 +86,8 @@ public final class CounterScreen extends Screen {
 		return start + n;
 	}
 	/** what a bar takes and how much of it: a player's name, a count, or prices */
-	static boolean takes(String key, char ch) { return key.equals("name") ? Character.isLetterOrDigit(ch) && ch < 128 || ch == '_' : key.equals("amount") ? ch >= '0' && ch <= '9' : ch >= '0' && ch <= '9' || ch == '.' || ch == ',' || ch == ' '; }
-	static int most(String key) { return key.equals("name") ? 16 : key.equals("amount") ? 4 : 40; }
+	static boolean takes(String key, char ch) { return key.equals("deathmsg") ? ch >= ' ' && ch != 127 && ch != '§' : key.equals("name") ? Character.isLetterOrDigit(ch) && ch < 128 || ch == '_' : key.equals("amount") ? ch >= '0' && ch <= '9' : ch >= '0' && ch <= '9' || ch == '.' || ch == ',' || ch == ' '; }
+	static int most(String key) { return key.equals("deathmsg") ? 120 : key.equals("name") ? 16 : key.equals("amount") ? 4 : 40; }
 	/** the text from a to b becomes this (only what the bar takes, as much as still fits); the caret ends after it */
 	void edit(int a, int b, String ins) {
 		if (focus == null) return; String v = value(focus); a = Math.max(0, Math.min(v.length(), a)); b = Math.max(a, Math.min(v.length(), b));
@@ -134,13 +134,20 @@ public final class CounterScreen extends Screen {
 		if (bx + f.width("✔ Carries from trades") + 14 > x + w) { bx = x; y += 20; }
 		bx += btn(g, f, (D.tradeSuggest ? "✔ " : "✘ ") + "Carries from trades", bx, y, mx, my, D.tradeSuggest, "When someone trades you coins, the carries your price list says that amount buys are offered in chat: one click adds them.", () -> { D.tradeSuggest = !D.tradeSuggest; Counter.save(); });
 		if (bx + f.width("✔ Kill time") + 14 > x + w) { bx = x; y += 20; }
-		bx += btn(g, f, (D.killTime ? "✔ " : "✘ ") + "Kill time", bx, y, mx, my, D.killTime, "How long each slayer boss took, in the count's line in your chat: from its first hit to its death, and since it spawned.", () -> { D.killTime = !D.killTime; Counter.save(); });
+		bx += btn(g, f, (D.killTime ? "✔ " : "✘ ") + "Kill time", bx, y, mx, my, D.killTime, "How long each slayer boss took, as a line in your chat with each count: since it spawned, and since its first hit.", () -> { D.killTime = !D.killTime; Counter.save(); });
 		if (bx + f.width("✔ Floating kill time") + 14 > x + w) { bx = x; y += 20; }
 		bx += btn(g, f, (D.killText ? "✔ " : "✘ ") + "Floating kill time", bx, y, mx, my, D.killText && D.killTime, "The kill time floats where the boss died for a few seconds. Only on your screen. Needs Kill time.", () -> { D.killText = !D.killText; Counter.save(); });
 		if (bx + f.width("✔ Client death warning") + 14 > x + w) { bx = x; y += 20; }
-		bx += btn(g, f, (D.deathWarn ? "✔ " : "✘ ") + "Client death warning", bx, y, mx, my, D.deathWarn, "When a slayer client dies while their boss is up (or their boss vanishes and so do they): a red line in your chat, a title and a sound. The boss is gone and nothing counts: they need to spawn a new one.", () -> { D.deathWarn = !D.deathWarn; Counter.save(); });
+		bx += btn(g, f, (D.deathWarn ? "✔ " : "✘ ") + "Client death warning", bx, y, mx, my, D.deathWarn, "When a slayer client dies while their boss is up (or their boss vanishes and so do they): a red line in your chat, a title and a sound. The boss is gone and nothing counts: they need to spawn a new one - or press [count 1 anyway] on that line.", () -> { D.deathWarn = !D.deathWarn; Counter.save(); });
 		if (bx + f.width("Move the counter") + 14 > x + w) { bx = x; y += 20; }
 		btn(g, f, "Move the counter", bx, y, mx, my, false, "Drag it where you want it on screen; the wheel sizes it.", () -> { moving = true; focus = null; });
+		y += 24;
+		{ // your own words for a boss you count though its client died
+			String lab = "Said when you count a boss its client died on:"; int lw = f.width(lab) + 6;
+			if (lw + 150 > w) { g.text(f, lab, x, y, MUTED, false); y += 11; lw = 0; } else g.text(f, lab, x, y + 4, MUTED, false);
+			if (in(mx, my, x, y, w, 16)) tip = "After you press [count 1 anyway] on a client's death line, this is said in your party chat with the count behind it: \"your words / Name 3/10 - Grimoire\". Left empty, only the usual count is said (if Count in party chat is on).";
+			field(g, f, "deathmsg", D.deathMsg == null ? "" : D.deathMsg, "nothing extra (type your message)", x + lw, y, w - lw, mx, my);
+		}
 		y += 26;
 
 		// ---- the carries: counting by hand
@@ -261,8 +268,9 @@ public final class CounterScreen extends Screen {
 		edit(Math.min(caret, anchor), Math.max(caret, anchor), ch); // typing takes the place of what is selected
 		return true;
 	}
-	String value(String key) { return key.equals("name") ? addName : key.equals("amount") ? addAmount : Counter.D.prices.getOrDefault(key, ""); }
+	String value(String key) { return key.equals("deathmsg") ? (Counter.D.deathMsg == null ? "" : Counter.D.deathMsg) : key.equals("name") ? addName : key.equals("amount") ? addAmount : Counter.D.prices.getOrDefault(key, ""); }
 	void set(String key, String v) {
+		if (key.equals("deathmsg")) { Counter.D.deathMsg = v; Counter.save(); return; }
 		if (key.equals("name")) addName = v; else if (key.equals("amount")) addAmount = v;
 		else { if (v.isBlank()) Counter.D.prices.remove(key); else Counter.D.prices.put(key, v); }
 	}

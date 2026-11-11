@@ -36,6 +36,9 @@ public final class CounterScreen extends Screen {
 	static String addName = "", addAmount = "1"; static int addType = 0, addTier = 3;
 	/** the text being typed in: "name", "amount" or a price row ("void|4"); null: none */
 	String focus = null;
+	/** the text bar being typed in: where its caret is and where the selection began (the same place: nothing selected), the first
+	 *  character shown when the text is wider than the bar, the bar's place on screen, and the click that is still being dragged */
+	int caret = 0, anchor = 0, fStart = 0; int[] fBox = null; boolean selecting = false, clickShift = false, clickDbl = false; double clickX = 0; String prevFocus = null;
 	/** dragging the counter on screen */
 	boolean moving = false, dragging = false; double grabX, grabY; int[] hudBox = {0, 0, 0, 0};
 
@@ -59,11 +62,42 @@ public final class CounterScreen extends Screen {
 	int field(GuiGraphicsExtractor g, Font f, String key, String value, String hint, int x, int y, int w, int mx, int my) {
 		boolean on = key.equals(focus), hv = in(mx, my, x, y, w, 16);
 		g.fill(x, y, x + w, y + 16, alpha(0x000000, 170)); g.outline(x, y, w, 16, on ? GILT : hv ? MINT : alpha(EDGE, 230));
-		String shown = value.isEmpty() && !on ? hint : value + (on && System.currentTimeMillis() / 500 % 2 == 0 ? "_" : "");
-		g.text(f, f.plainSubstrByWidth(shown, w - 8), x + 4, y + 4, value.isEmpty() && !on ? DIM : TEXT, false);
-		hits.add(new Object[]{new int[]{x, y, w, 16}, (Runnable) () -> focus = key});
+		if (!on) g.text(f, f.plainSubstrByWidth(value.isEmpty() ? hint : value, w - 8), x + 4, y + 4, value.isEmpty() ? DIM : TEXT, false);
+		else { // the bar you're typing in: its selection, its text from the first character that fits, its caret
+			int len = value.length(); caret = Math.max(0, Math.min(len, caret)); anchor = Math.max(0, Math.min(len, anchor)); int room = w - 8;
+			int start = Math.max(0, Math.min(fStart, caret)); while (start < caret && f.width(value.substring(start, caret)) > room - 2) start++;
+			fStart = start; String vis = f.plainSubstrByWidth(value.substring(start), room); int end = start + vis.length();
+			int sa = Math.max(Math.min(caret, anchor), start), sb = Math.min(Math.max(caret, anchor), end);
+			if (sb > sa) g.fill(x + 4 + f.width(value.substring(start, sa)), y + 3, x + 4 + f.width(value.substring(start, sb)), y + 13, 0xFF2D5FCC);
+			g.text(f, vis, x + 4, y + 4, 0xFFFFFFFF, false);
+			if (System.currentTimeMillis() / 500 % 2 == 0 && caret <= end) { int cx = x + 4 + f.width(value.substring(start, caret)); g.fill(cx, y + 3, cx + 1, y + 13, 0xFFFFFFFF); }
+			fBox = new int[]{x, y, w, 16};
+		}
+		hits.add(new Object[]{new int[]{x, y, w, 16}, (Runnable) () -> { // a click: the caret goes where you clicked (Shift: the selection reaches there; twice: everything is selected)
+			boolean same = key.equals(prevFocus); focus = key; String v = value(key); if (!same) fStart = 0; fBox = new int[]{x, y, w, 16};
+			int at = indexAt(v, clickX); if (clickDbl) { anchor = 0; caret = v.length(); } else { if (!(same && clickShift)) anchor = at; caret = at; selecting = true; } }});
 		return w + 4;
 	}
+	/** the character of the bar's text nearest to a place on screen */
+	int indexAt(String v, double sx) {
+		if (fBox == null) return v.length(); Font f = Minecraft.getInstance().font; int start = Math.max(0, Math.min(v.length(), fStart)); String s = v.substring(start);
+		int rel = (int) Math.round(sx) - (fBox[0] + 4); if (rel <= 0) return start; int n = f.plainSubstrByWidth(s, rel).length();
+		if (n < s.length() && rel - f.width(s.substring(0, n)) > f.width(s.substring(n, n + 1)) / 2) n++;
+		return start + n;
+	}
+	/** what a bar takes and how much of it: a player's name, a count, or prices */
+	static boolean takes(String key, char ch) { return key.equals("name") ? Character.isLetterOrDigit(ch) && ch < 128 || ch == '_' : key.equals("amount") ? ch >= '0' && ch <= '9' : ch >= '0' && ch <= '9' || ch == '.' || ch == ',' || ch == ' '; }
+	static int most(String key) { return key.equals("name") ? 16 : key.equals("amount") ? 4 : 40; }
+	/** the text from a to b becomes this (only what the bar takes, as much as still fits); the caret ends after it */
+	void edit(int a, int b, String ins) {
+		if (focus == null) return; String v = value(focus); a = Math.max(0, Math.min(v.length(), a)); b = Math.max(a, Math.min(v.length(), b));
+		StringBuilder ok = new StringBuilder(); int room = most(focus) - (v.length() - (b - a));
+		for (int i = 0; i < ins.length() && ok.length() < room; i++) if (takes(focus, ins.charAt(i))) ok.append(ins.charAt(i));
+		if (ok.length() == 0 && a == b) return;
+		set(focus, v.substring(0, a) + ok + v.substring(b)); caret = anchor = a + ok.length();
+	}
+	/** typing goes into this bar, all of its text selected */
+	void focusOn(String key) { focus = key; fStart = 0; anchor = 0; caret = key == null ? 0 : value(key).length(); }
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor g, int mx, int my, float dt) {
@@ -167,8 +201,8 @@ public final class CounterScreen extends Screen {
 	static boolean shift() { return Minecraft.getInstance().hasShiftDown(); }
 	void addNow() {
 		String n = addName.trim(); int amount; try { amount = Integer.parseInt(addAmount.trim()); } catch (Exception e) { amount = 0; }
-		if (!n.matches("\\w{1,16}")) { Counter.info("Type the player's name first.", ChatFormatting.RED); focus = "name"; return; }
-		if (amount < 1) { Counter.info("How many carries? Type a number.", ChatFormatting.RED); focus = "amount"; return; }
+		if (!n.matches("\\w{1,16}")) { Counter.info("Type the player's name first.", ChatFormatting.RED); focusOn("name"); return; }
+		if (amount < 1) { Counter.info("How many carries? Type a number.", ChatFormatting.RED); focusOn("amount"); return; }
 		String type = TYPES[addType][0]; String[] kt = {type.equals("kuudra") ? "kuudra" : type.equals("dungeon") ? "dungeon" : "slayer", type, tiers(type)[addTier]};
 		Counter.add(n, kt, amount); addName = ""; addAmount = "1"; focus = null;
 	}
@@ -176,16 +210,17 @@ public final class CounterScreen extends Screen {
 	@Override public boolean mouseClicked(MouseButtonEvent e, boolean dbl) {
 		lastButton = e.button();
 		if (moving) { if (in(e.x(), e.y(), hudBox[0], hudBox[1], hudBox[2], hudBox[3])) { dragging = true; grabX = e.x() - Counter.D.hudX; grabY = e.y() - Counter.D.hudY; } return true; }
-		String was = focus; focus = null;
+		String was = focus; focus = null; prevFocus = was; clickX = e.x(); clickDbl = dbl && e.button() == 0; clickShift = e.hasShiftDown(); selecting = false;
 		for (int i = hits.size() - 1; i >= 0; i--) { int[] r = (int[]) hits.get(i)[0]; if (in(e.x(), e.y(), r[0], r[1], r[2], r[3])) { ((Runnable) hits.get(i)[1]).run(); break; } }
 		if (was != null && !was.equals(focus)) Counter.save();
 		return true;
 	}
 	@Override public boolean mouseDragged(MouseButtonEvent e, double dx, double dy) {
+		if (selecting && focus != null && !moving) { caret = indexAt(value(focus), e.x()); return true; } // dragging over a bar's text selects it
 		if (moving && dragging) { Counter.D.hudX = (int) Math.max(0, Math.min(width - 20, e.x() - grabX)); Counter.D.hudY = (int) Math.max(0, Math.min(height - 12, e.y() - grabY)); }
 		return true;
 	}
-	@Override public boolean mouseReleased(MouseButtonEvent e) { if (dragging) { dragging = false; Counter.save(); } return true; }
+	@Override public boolean mouseReleased(MouseButtonEvent e) { selecting = false; if (dragging) { dragging = false; Counter.save(); } return true; }
 	@Override public boolean mouseScrolled(double mx, double my, double sx, double sy) {
 		if (moving) { Counter.D.hudScale = Math.max(0.5f, Math.min(3f, Math.round((Counter.D.hudScale + (sy > 0 ? 0.1f : -0.1f)) * 10) / 10f)); Counter.save(); return true; }
 		scroll = Math.max(0, Math.min(maxScroll, scroll - (int) (sy * 24))); return true;
@@ -194,20 +229,30 @@ public final class CounterScreen extends Screen {
 		int k = e.key();
 		if (moving) { if (k == GLFW.GLFW_KEY_ESCAPE || k == GLFW.GLFW_KEY_ENTER || k == GLFW.GLFW_KEY_KP_ENTER) { moving = false; dragging = false; Counter.save(); } return true; }
 		if (focus != null) {
+			String v = value(focus); int len = v.length(); caret = Math.max(0, Math.min(len, caret)); anchor = Math.max(0, Math.min(len, anchor));
+			int a = Math.min(caret, anchor), b = Math.max(caret, anchor); boolean shift = e.hasShiftDown(), ctrl = e.hasControlDown();
 			if (k == GLFW.GLFW_KEY_ESCAPE) { focus = null; Counter.save(); return true; }
 			if (k == GLFW.GLFW_KEY_ENTER || k == GLFW.GLFW_KEY_KP_ENTER) { if (focus.equals("name") || focus.equals("amount")) addNow(); else { focus = null; Counter.save(); } return true; }
-			if (k == GLFW.GLFW_KEY_TAB) { focus = focus.equals("name") ? "amount" : focus.equals("amount") ? "name" : focus; return true; }
-			if (k == GLFW.GLFW_KEY_BACKSPACE) { String v = value(focus); if (!v.isEmpty()) set(focus, v.substring(0, v.length() - 1)); return true; }
+			if (k == GLFW.GLFW_KEY_TAB) { if (focus.equals("name")) focusOn("amount"); else if (focus.equals("amount")) focusOn("name"); return true; }
+			// the keys every text bar answers to: select all, copy, cut, paste; the arrows, Home and End (Shift selects); Backspace and Delete
+			if (e.isSelectAll()) { anchor = 0; caret = len; return true; }
+			if (e.isCopy()) { if (a != b) Minecraft.getInstance().keyboardHandler.setClipboard(v.substring(a, b)); return true; }
+			if (e.isCut()) { if (a != b) { Minecraft.getInstance().keyboardHandler.setClipboard(v.substring(a, b)); edit(a, b, ""); } return true; }
+			if (e.isPaste()) { String clip = Minecraft.getInstance().keyboardHandler.getClipboard(); edit(a, b, clip == null ? "" : clip.replace("\n", " ").replace("\r", "")); return true; }
+			if (k == GLFW.GLFW_KEY_LEFT) { caret = !shift && a != b ? a : ctrl ? 0 : Math.max(0, caret - 1); if (!shift) anchor = caret; return true; }
+			if (k == GLFW.GLFW_KEY_RIGHT) { caret = !shift && a != b ? b : ctrl ? len : Math.min(len, caret + 1); if (!shift) anchor = caret; return true; }
+			if (k == GLFW.GLFW_KEY_HOME || k == GLFW.GLFW_KEY_UP) { caret = 0; if (!shift) anchor = caret; return true; }
+			if (k == GLFW.GLFW_KEY_END || k == GLFW.GLFW_KEY_DOWN) { caret = len; if (!shift) anchor = caret; return true; }
+			if (k == GLFW.GLFW_KEY_BACKSPACE) { if (a != b) edit(a, b, ""); else if (caret > 0) edit(ctrl ? 0 : caret - 1, caret, ""); return true; }
+			if (k == GLFW.GLFW_KEY_DELETE) { if (a != b) edit(a, b, ""); else if (caret < len) edit(caret, ctrl ? len : caret + 1, ""); return true; }
 			return true;
 		}
 		return super.keyPressed(e);
 	}
 	@Override public boolean charTyped(CharacterEvent e) {
 		if (focus == null) return false;
-		String ch = e.codepointAsString(), v = value(focus);
-		if (focus.equals("name")) { if (ch.matches("\\w") && v.length() < 16) set(focus, v + ch); }
-		else if (focus.equals("amount")) { if (ch.matches("\\d") && v.length() < 4) set(focus, v + ch); }
-		else if (ch.matches("[\\d., ]") && v.length() < 40) set(focus, v + ch);
+		String ch = e.codepointAsString(); int len = value(focus).length(); caret = Math.max(0, Math.min(len, caret)); anchor = Math.max(0, Math.min(len, anchor));
+		edit(Math.min(caret, anchor), Math.max(caret, anchor), ch); // typing takes the place of what is selected
 		return true;
 	}
 	String value(String key) { return key.equals("name") ? addName : key.equals("amount") ? addAmount : Counter.D.prices.getOrDefault(key, ""); }

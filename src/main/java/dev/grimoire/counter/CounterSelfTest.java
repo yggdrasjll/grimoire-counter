@@ -92,6 +92,17 @@ final class CounterSelfTest {
 		Counter.handle("  SLAYER QUEST COMPLETE!"); check("own boss: the same one isn't counted twice", done(me) == 1);
 		Counter.lastLoot.clear(); Counter.D.self = false; Counter.handle("  SLAYER QUEST COMPLETE!"); check("own bosses switched off", done(me) == 1); Counter.D.self = true;
 		Counter.lastLoot.clear(); Counter.handle("Alex: SLAYER QUEST COMPLETE!"); check("a player saying it isn't it", done(me) == 1);
+		// an Inferno Demonlord's tag gives what it has left and what it started with
+		check("health left / total", Counter.hp("134.5M/150M❤") == 134.5e6 && Counter.hpMax("134.5M/150M❤") == 150e6 && Counter.hpMax("30M❤") == -1 && Counter.hp("2,400/3k❤") == 2400);
+		m = Counter.BOSS_TAG.matcher("☠ Inferno Demonlord IV 134.5M/150M❤"); check("inferno tag with both", m.find() && Counter.hp(m.group(3)) == 134.5e6 && Counter.roman(m.group(2)) == 4);
+		// your own boss: the spawn line says which it was; another tier than the one being counted isn't counted
+		fresh(); Counter.lastLoot.clear(); Counter.add(me, Counter.parse("blaze", "4"), 5);
+		Counter.handle("  SLAYER BOSS! The Inferno Demonlord IV spawned!"); Counter.handle("  SLAYER QUEST COMPLETE!"); check("own Inferno T4 from the spawn line", done(me) == 1);
+		Counter.lastLoot.clear(); Counter.handle("  SLAYER BOSS! The Inferno Demonlord III spawned!"); Counter.handle("  SLAYER QUEST COMPLETE!"); check("own boss of another tier isn't counted", done(me) == 1);
+		Counter.lastLoot.clear(); Counter.handle("Party > [MVP+] Alex: SLAYER BOSS! The Inferno Demonlord II spawned!"); Counter.handle("  SLAYER QUEST COMPLETE!"); check("a player's words aren't the spawn line", done(me) == 2);
+		// the party message: queued, said once, cleared when the party chat shows it
+		Counter.annQ.clear(); Counter.annSent = null; Counter.D.announce = true; Counter.announceCount(Counter.find(me, "slayer")); check("party message queued", Counter.annQ.size() == 1 && Counter.annQ.peek().equals(me + " 2/5 - Grimoire"));
+		Counter.annSent = Counter.annQ.poll(); Counter.handle("Party > [MVP+] " + me + ": " + me + " 2/5 - Grimoire"); check("seen in the party chat: done with it", Counter.annSent == null); Counter.D.announce = false;
 		// the text bars: typing, select all, copy, cut, paste, the arrows, Backspace and Delete
 		CounterScreen cs = new CounterScreen(); CounterScreen.addName = ""; CounterScreen.addAmount = "1"; cs.focusOn("name");
 		int CTRL = org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL, SHIFT = org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;

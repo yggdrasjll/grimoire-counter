@@ -208,11 +208,17 @@ public final class Counter {
 	 *  one for your carry. The quest on your scoreboard says which boss it was, so another type or tier isn't counted;
 	 *  and a boss its name tag already counted isn't counted again. */
 	static final Pattern OWN_QUEST = Pattern.compile("(Voidgloom Seraph|Inferno Demonlord|Revenant Horror|Atoned Horror|Tarantula Broodfather|Conjoined Brood|Sven Packmaster|Riftstalker Bloodfiend)(?: ([IVX]{1,3}))?\\s*$");
+	/** "SLAYER BOSS! The Inferno Demonlord IV spawned!": what the one whose quest it is is told when their boss comes */
+	static final Pattern OWN_SPAWN = Pattern.compile("SLAYER BOSS!?\\W*(?:The )?(Voidgloom Seraph|Inferno Demonlord|Revenant Horror|Atoned Horror|Tarantula Broodfather|Conjoined Brood|Sven Packmaster|Riftstalker Bloodfiend)(?: ([IVX]{1,3}))?\\b.*spawned");
+	static String ownType = null, ownTier = null; static long ownSpawnAt = 0;
 	static void ownBoss(long now) {
 		Minecraft mc = Minecraft.getInstance();
 		String me = mc.player != null ? mc.player.getGameProfile().name() : mc.getUser().getName(); Carry c = find(me, "slayer"); if (c == null || c.done >= c.total) return;
 		String lk = me.toLowerCase(Locale.ROOT); Long last = lastLoot.get(lk); if (last != null && now - last < GHOST_MS) return;
-		if (mc.level != null) try { for (String line : sidebar(mc)) { Matcher q = OWN_QUEST.matcher(line.trim()); if (!q.find()) continue;
+		// which boss it was: the "SLAYER BOSS! The … spawned!" line you were sent when it came, else the quest on your scoreboard
+		if (ownType != null && now - ownSpawnAt < 1_200_000L) { String type = ownType, tier = ownTier; ownType = null;
+			if (!(type.equals(c.type) && tier.equals(c.tier))) { progress("Your boss wasn't counted: it was a " + SLAYER_NAMES.getOrDefault(type, type) + " T" + tier + ", not your " + c.label() + ".", ChatFormatting.GRAY); return; } }
+		else if (mc.level != null) try { for (String line : sidebar(mc)) { Matcher q = OWN_QUEST.matcher(line.trim()); if (!q.find()) continue;
 			String type = BOSS_TYPE.get(q.group(1)), tier = q.group(2) == null ? "5" : String.valueOf(roman(q.group(2)));
 			if (type != null && !(type.equals(c.type) && tier.equals(c.tier))) { progress("Your boss wasn't counted: it was a " + SLAYER_NAMES.getOrDefault(type, type) + " T" + tier + ", not your " + c.label() + ".", ChatFormatting.GRAY); return; }
 			break; } } catch (Throwable ignored) {}
@@ -220,6 +226,8 @@ public final class Counter {
 	}
 	static void handle(String s) {
 		Matcher m; long now = System.currentTimeMillis();
+		heard(s);
+		if (s.contains("SLAYER BOSS") && !s.matches("^(?:\\[[^\\]]+] ?)*\\w{1,16}: .*") && !s.startsWith("Party >") && !s.startsWith("Guild >") && (m = OWN_SPAWN.matcher(s)).find()) { ownType = BOSS_TYPE.get(m.group(1)); ownTier = m.group(2) == null ? "5" : String.valueOf(roman(m.group(2))); ownSpawnAt = now; }
 		if ((m = TRADE_DONE.matcher(s)).find()) { trader = m.group(1); traderAt = now; return; }
 		if (trader != null && now - traderAt < 3000 && (m = TRADE_COINS.matcher(s)).find()) { tradeCoins(trader, m.group(1), m.group(2)); trader = null; return; }
 		if (!D.auto) return;
@@ -284,7 +292,8 @@ public final class Counter {
 			Carry cc = find(b.owner, "slayer");
 			b.name = cc != null ? SLAYER_NAMES.getOrDefault(cc.type, "Slayer boss") : "Slayer boss"; b.type = cc != null ? cc.type : "void"; b.tier = cc != null ? cc.tier : "5"; hpText = jm.group(2);
 		}
-		double hp = hp(hpText); if (hp >= 0) { if (b.firstHp < 0 || hp > b.firstHp) b.firstHp = hp; if (b.hitAt == 0 && b.firstHp > 0 && hp < b.firstHp) b.hitAt = now; b.lastHp = hp; }
+		double hp = hp(hpText); { double mx = hpMax(hpText); if (mx > 0 && mx > b.firstHp) b.firstHp = mx; } // (a tag that says what it started with: its health is known from the first look)
+		if (hp >= 0) { if (b.firstHp < 0 || hp > b.firstHp) b.firstHp = hp; if (b.hitAt == 0 && b.firstHp > 0 && hp < b.firstHp) b.hitAt = now; b.lastHp = hp; }
 		b.seen = now; b.tagId = tag.getId();
 		return true;
 	}
@@ -516,12 +525,15 @@ public final class Counter {
 	}
 
 	static int roman(String r) { return switch (r) { case "I" -> 1; case "II" -> 2; case "III" -> 3; case "IV" -> 4; case "V" -> 5; default -> 0; }; }
-	static final Pattern HP_RE = Pattern.compile("([\\d.,]+)([kKmMbB]?)[❤\\ue000-\\uf8ff]"); // ❤ or Hypixel's own-font heart glyph
+	// "134.5M/150M❤" (what it has left / what it started with, as an Inferno Demonlord's tag says it) or just "150M❤"
+	static final Pattern HP_RE = Pattern.compile("([\\d.,]+)([kKmMbB]?)(?:\\s*/\\s*([\\d.,]+)([kKmMbB]?))?\\s*[❤\\ue000-\\uf8ff]");
+	static double hpNum(String n, String unit) { double v; try { v = Double.parseDouble(n.replace(",", "")); } catch (Exception e) { return -1; } return switch (unit.toLowerCase(Locale.ROOT)) { case "k" -> v * 1e3; case "m" -> v * 1e6; case "b" -> v * 1e9; default -> v; }; }
+	/** the health a tag says the boss started with ("…/150M❤"), or -1 when it only gives what is left */
+	static double hpMax(String s) { Matcher m = HP_RE.matcher(s); return m.find() && m.group(3) != null ? hpNum(m.group(3), m.group(4)) : -1; } // ❤ or Hypixel's own-font heart glyph
 	static double hp(String s) {
 		Matcher m = HP_RE.matcher(s);
 		if (!m.find()) return -1;
-		double v; try { v = Double.parseDouble(m.group(1).replace(",", "")); } catch (Exception e) { return -1; }
-		return switch (m.group(2).toLowerCase(Locale.ROOT)) { case "k" -> v * 1e3; case "m" -> v * 1e6; case "b" -> v * 1e9; default -> v; };
+		return hpNum(m.group(1), m.group(2));
 	}
 
 	/** The sidebar's lines. */
@@ -597,12 +609,27 @@ public final class Counter {
 
 	/** The count in party chat (only if you turned it on): a normal party message, exactly like typing it yourself.
 	 *  Messages are queued and sent at least 1.6 s apart, so two clients' bosses dying together post one after the other. */
-	static final ArrayDeque<String> annQ = new ArrayDeque<>(); static long lastAnn = 0;
-	static void announceCount(Carry c) { if (!D.announce) return; annQ.add(c.player + " " + c.done + "/" + c.total + " - Grimoire"); drainAnnounce(Minecraft.getInstance(), System.currentTimeMillis()); }
+	static final ArrayDeque<String> annQ = new ArrayDeque<>(); static long lastAnn = 0, annReady = 0, annSentAt = 0; static String annSent = null; static int annTries = 0;
+	/** A count for the party chat. It waits a moment (said in the same instant as the kill, Hypixel can drop it as part of a
+	 *  burst of commands), and it is checked: if the party chat hasn't shown it within a few seconds it is said once more. */
+	static void announce(String text) { annQ.add(text); annReady = Math.max(annReady, System.currentTimeMillis() + 600); }
 	static void drainAnnounce(Minecraft mc, long now) {
-		if (annQ.isEmpty() || now - lastAnn < 1600 || mc.getConnection() == null) return;
-		lastAnn = now; mc.getConnection().sendCommand("pc " + annQ.poll());
+		if (mc.getConnection() == null) return;
+		if (annSent != null) { // the one just said: seen in the party chat (heard() clears it), still waited for, said again, or given up
+			if (now - annSentAt < 3500) return;
+			if (annTries < 2 && annQ.isEmpty()) { annTries++; annSentAt = now; lastAnn = now; mc.getConnection().sendCommand("pc " + annSent); return; }
+			if (annTries >= 2) info("The party chat never showed the count (said twice): " + annSent, ChatFormatting.GRAY);
+			annSent = null;
+		}
+		if (annQ.isEmpty() || now < annReady || now - lastAnn < 1600) return;
+		annSent = annQ.poll(); annTries = 1; annSentAt = now; lastAnn = now; mc.getConnection().sendCommand("pc " + annSent);
 	}
+	/** a chat line: the count just said, come back in the party chat - or Hypixel saying why it can't be said */
+	static void heard(String s) {
+		if (annSent == null) return;
+		if (s.contains(annSent) || s.contains("not in a party") || s.contains("not currently in a party") || s.contains("same message twice") || s.contains("muted")) annSent = null;
+	}
+	static void announceCount(Carry c) { if (D.announce) announce(c.player + " " + c.done + "/" + c.total + " - Grimoire"); }
 
 	// ---------- words in your own chat ----------
 	static MutableComponent prefix() { return Component.literal("[Grimoire Counter] ").withStyle(ChatFormatting.LIGHT_PURPLE); }

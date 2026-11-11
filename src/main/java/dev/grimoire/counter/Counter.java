@@ -59,7 +59,7 @@ public final class Counter {
 	public static final class Data {
 		public List<Carry> carries = new ArrayList<>();
 		/** the counter on screen · counting by itself · the count in party chat · progress lines in your own chat · carries offered when a client trades you coins */
-		public boolean hud = true, auto = true, announce = false, chatLines = true, tradeSuggest = true;
+		public boolean hud = true, auto = true, announce = false, chatLines = true, tradeSuggest = true, self = true;
 		public int hudX = 6, hudY = 40; public float hudScale = 1f;
 		/** "type|tier" -> prices in millions per carry, in priority order, e.g. "1.3, 2.3, 2, 1.5" */
 		public Map<String, String> prices = new LinkedHashMap<>();
@@ -203,11 +203,27 @@ public final class Counter {
 	static final Pattern TRADE_DONE = Pattern.compile("^Trade completed with (?:\\[[^]]+] )?(\\w{1,16})!$");
 	static final Pattern TRADE_COINS = Pattern.compile("^\\+ ([\\d.,]+)([kKmMbB]?) [Cc]oins$");
 	static String trader = null; static long traderAt = 0;
+	static final Pattern QUEST_DONE = Pattern.compile("^\\s*SLAYER QUEST COMPLETE!\\s*$");
+	/** Your own bosses: with yourself as the client, "SLAYER QUEST COMPLETE!" in chat is Hypixel saying your boss died -
+	 *  one for your carry. The quest on your scoreboard says which boss it was, so another type or tier isn't counted;
+	 *  and a boss its name tag already counted isn't counted again. */
+	static final Pattern OWN_QUEST = Pattern.compile("(Voidgloom Seraph|Inferno Demonlord|Revenant Horror|Atoned Horror|Tarantula Broodfather|Conjoined Brood|Sven Packmaster|Riftstalker Bloodfiend)(?: ([IVX]{1,3}))?\\s*$");
+	static void ownBoss(long now) {
+		Minecraft mc = Minecraft.getInstance();
+		String me = mc.player != null ? mc.player.getGameProfile().name() : mc.getUser().getName(); Carry c = find(me, "slayer"); if (c == null || c.done >= c.total) return;
+		String lk = me.toLowerCase(Locale.ROOT); Long last = lastLoot.get(lk); if (last != null && now - last < GHOST_MS) return;
+		if (mc.level != null) try { for (String line : sidebar(mc)) { Matcher q = OWN_QUEST.matcher(line.trim()); if (!q.find()) continue;
+			String type = BOSS_TYPE.get(q.group(1)), tier = q.group(2) == null ? "5" : String.valueOf(roman(q.group(2)));
+			if (type != null && !(type.equals(c.type) && tier.equals(c.tier))) { progress("Your boss wasn't counted: it was a " + SLAYER_NAMES.getOrDefault(type, type) + " T" + tier + ", not your " + c.label() + ".", ChatFormatting.GRAY); return; }
+			break; } } catch (Throwable ignored) {}
+		lastLoot.put(lk, now); count(c, "");
+	}
 	static void handle(String s) {
 		Matcher m; long now = System.currentTimeMillis();
 		if ((m = TRADE_DONE.matcher(s)).find()) { trader = m.group(1); traderAt = now; return; }
 		if (trader != null && now - traderAt < 3000 && (m = TRADE_COINS.matcher(s)).find()) { tradeCoins(trader, m.group(1), m.group(2)); trader = null; return; }
 		if (!D.auto) return;
+		if (D.self && QUEST_DONE.matcher(s).find()) { ownBoss(now); return; }
 		if (MORT.matcher(s).find()) { dungeonStarted = true; dungeonStart = present(); if (dungeonFloor != null) startMsg("dungeon", dungeonFloor.toLowerCase(Locale.ROOT), dungeonStart); return; }
 		if (DUNGEON_END.matcher(s).find()) { dungeonEndAt = now; return; }
 		if (DUNGEON_WIN.matcher(s).find() && now - dungeonEndAt < 8000 && dungeonStarted) { dungeonStarted = false; dungeonWin(); return; }

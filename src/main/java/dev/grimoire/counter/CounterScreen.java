@@ -91,6 +91,9 @@ public final class CounterScreen extends Screen {
 		int bx = x;
 		bx += btn(g, f, (D.auto ? "✔ " : "✘ ") + "Count by itself", bx, y, mx, my, D.auto, "Slayer bosses, dungeon runs and Kuudra runs are counted for your clients when Hypixel itself confirms them. Off: only what you count by hand.", () -> { D.auto = !D.auto; Counter.save(); });
 		bx += btn(g, f, (D.hud ? "✔ " : "✘ ") + "Counter on screen", bx, y, mx, my, D.hud, "The list of your carries while you play.", () -> { D.hud = !D.hud; Counter.save(); });
+		if (bx + f.width("✔ My own bosses") + 14 > x + w) { bx = x; y += 20; }
+		bx += btn(g, f, (D.self ? "✔ " : "✘ ") + "My own bosses", bx, y, mx, my, D.self, "Add yourself as the client and your own slayer bosses are counted too: each \"SLAYER QUEST COMPLETE!\" in chat is one, if the quest on your scoreboard is the boss and tier being counted.", () -> { D.self = !D.self; Counter.save(); });
+		if (bx + f.width("✔ Count in party chat") + 14 > x + w) { bx = x; y += 20; }
 		bx += btn(g, f, (D.announce ? "✔ " : "✘ ") + "Count in party chat", bx, y, mx, my, D.announce, "Each time a carry counts (by itself or by hand), \"Name 3/10 - Grimoire\" is said in your party chat, like typing it yourself.", () -> { D.announce = !D.announce; Counter.save(); });
 		if (bx + f.width("✔ Progress lines in chat") + 14 > x + w) { bx = x; y += 20; }
 		bx += btn(g, f, (D.chatLines ? "✔ " : "✘ ") + "Progress lines in chat", bx, y, mx, my, D.chatLines, "A line in your own chat for each count, a run that started, and a run that wasn't the booked one. Only you see them.", () -> { D.chatLines = !D.chatLines; Counter.save(); });

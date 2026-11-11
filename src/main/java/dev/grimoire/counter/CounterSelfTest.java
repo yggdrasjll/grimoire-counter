@@ -86,6 +86,12 @@ final class CounterSelfTest {
 		c = Counter.add("Alex", Counter.parse("void", "4"), 10); check("unit price", Counter.unitPrice(c) == 1.3e6);
 		check("coins", Counter.coins(13e6).equals("13M") && Counter.coins(650_000).equals("650k") && Counter.coins(1.25e9).equals("1.25B"));
 		check("party words", (c.player + " " + c.done + "/" + c.total + " - Grimoire").equals("Alex 0/10 - Grimoire"));
+		// your own bosses: you as the client, counted from "SLAYER QUEST COMPLETE!" in chat
+		fresh(); String me = net.minecraft.client.Minecraft.getInstance().getUser().getName(); Counter.lastLoot.clear();
+		Counter.add(me, Counter.parse("void", "4"), 3); Counter.handle("  SLAYER QUEST COMPLETE!"); check("own boss from chat", done(me) == 1);
+		Counter.handle("  SLAYER QUEST COMPLETE!"); check("own boss: the same one isn't counted twice", done(me) == 1);
+		Counter.lastLoot.clear(); Counter.D.self = false; Counter.handle("  SLAYER QUEST COMPLETE!"); check("own bosses switched off", done(me) == 1); Counter.D.self = true;
+		Counter.lastLoot.clear(); Counter.handle("Alex: SLAYER QUEST COMPLETE!"); check("a player saying it isn't it", done(me) == 1);
 		Counter.presentTest = null;
 	}
 	/** a few carries to look at on the page */

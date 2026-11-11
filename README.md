@@ -18,6 +18,8 @@ clicks, aims or moves for you.
 
 - **Counting by itself**, with the rules above (the same ones as in Grimoire).
 - **Counting by hand** on its page: − and + for every carry, more or fewer ordered, remove.
+- **Your own bosses**: add yourself as the client and each "SLAYER QUEST COMPLETE!" in your chat counts one, if the
+  quest on your scoreboard is the boss and tier being counted. A switch turns it off.
 - **A price list** with a row for every carry it counts (every slayer tier, every Kuudra tier, Entrance to M7): your
   prices in millions per carry. When a client trades you coins, the carries that amount buys
   are offered in chat, one click to add them; each carry shows what it is worth.

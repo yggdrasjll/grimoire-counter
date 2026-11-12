@@ -27,7 +27,8 @@ clicks, aims or moves for you.
   prices in millions per carry. When a client trades you coins, the carries that amount buys
   are offered in chat, one click to add them; each carry shows what it is worth.
 - **Copy the count**: every 10th count of a carry, and its last one, goes to your clipboard as the party line, ready
-  to paste (a carry of 9 or fewer is copied once, when it's done).
+  to paste (a carry of 9 or fewer is copied once, when it's done). Each copy's chat line has a [Copy] button that copies
+  it again - handy when two clients reach a count at the same moment and the second copy replaces the first.
 - **Kill time**: how long each slayer boss took - since it spawned, and since its first hit - as a line in your
   chat with each count, and floating where the boss died for a few seconds (each has its own switch).
 - **Boss spawned line**: a line in your chat when a client's boss has spawned, saying whose it is.

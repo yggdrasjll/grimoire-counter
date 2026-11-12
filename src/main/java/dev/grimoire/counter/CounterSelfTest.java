@@ -186,6 +186,8 @@ final class CounterSelfTest {
 		big.done = 24; Counter.plus(big); check("the last of 25: copied", "Alex 25/25 - Grimoire".equals(Counter.lastCopied));
 		Counter.lastCopied = null; Counter.Carry small = Counter.add("Steve", Counter.parse("blaze", "4"), 3); Counter.plus(small); Counter.plus(small); check("1 and 2 of 3: not copied", Counter.lastCopied == null);
 		Counter.plus(small); check("a carry of 9 or fewer: copied at the end", "Steve 3/3 - Grimoire".equals(Counter.lastCopied));
+		{ var cm = Counter.copiedMsg("Alex 10/25 - Grimoire"); var sib = cm.getSiblings(); var btn = sib.isEmpty() ? null : sib.get(sib.size() - 1); var ce = btn == null ? null : btn.getStyle().getClickEvent();
+		  check("the copied line has a [Copy] button that copies it again", btn != null && btn.getString().equals("[Copy]") && ce instanceof net.minecraft.network.chat.ClickEvent.CopyToClipboard cc && cc.value().equals("Alex 10/25 - Grimoire")); }
 		Counter.lastCopied = null; Counter.D.copyCount = false; Counter.Carry off = Counter.add("Efe", Counter.parse("void", "4"), 1); Counter.plus(off); check("copying switched off: nothing copied", Counter.lastCopied == null); Counter.D.copyCount = true;
 		// the text bars: typing, select all, copy, cut, paste, the arrows, Backspace and Delete
 		CounterScreen cs = new CounterScreen(); CounterScreen.addName = ""; CounterScreen.addAmount = "1"; cs.focusOn("name");

@@ -134,7 +134,7 @@ public final class CounterScreen extends Screen {
 		if (bx + f.width("✔ Carries from trades") + 14 > x + w) { bx = x; y += 20; }
 		bx += btn(g, f, (D.tradeSuggest ? "✔ " : "✘ ") + "Carries from trades", bx, y, mx, my, D.tradeSuggest, "When someone trades you coins, the carries your price list says that amount buys are offered in chat: one click adds them.", () -> { D.tradeSuggest = !D.tradeSuggest; Counter.save(); });
 		if (bx + f.width("✔ Copy the count") + 14 > x + w) { bx = x; y += 20; }
-		bx += btn(g, f, (D.copyCount ? "✔ " : "✘ ") + "Copy the count", bx, y, mx, my, D.copyCount, "Every 10th count of a carry, and its last one, is copied to your clipboard as the party line (Name 10/40 - Grimoire), ready to paste. A carry of 9 or fewer is copied once, when it's done.", () -> { D.copyCount = !D.copyCount; Counter.save(); });
+		bx += btn(g, f, (D.copyCount ? "✔ " : "✘ ") + "Copy the count", bx, y, mx, my, D.copyCount, "Every 10th count of a carry, and its last one, is copied to your clipboard as the party line (Name 10/40 - Grimoire), ready to paste. A carry of 9 or fewer is copied once, when it's done. Each copy's chat line has a [Copy] button that copies it again (when two clients reach a count together).", () -> { D.copyCount = !D.copyCount; Counter.save(); });
 		if (bx + f.width("✔ Kill time") + 14 > x + w) { bx = x; y += 20; }
 		bx += btn(g, f, (D.killTime ? "✔ " : "✘ ") + "Kill time", bx, y, mx, my, D.killTime, "How long each slayer boss took, as a line in your chat with each count: since it spawned, and since its first hit.", () -> { D.killTime = !D.killTime; Counter.save(); });
 		if (bx + f.width("✔ Floating kill time") + 14 > x + w) { bx = x; y += 20; }

@@ -826,7 +826,19 @@ public final class Counter {
 		if (!D.copyCount || !(c.done % 10 == 0 || c.done >= c.total) || c.done <= 0) return;
 		lastCopied = partyLine(c);
 		try { Minecraft.getInstance().keyboardHandler.setClipboard(lastCopied); } catch (Throwable ignored) {}
-		info("Copied \"" + lastCopied + "\" to your clipboard.", ChatFormatting.GRAY);
+		copiedLine(lastCopied);
+	}
+	/** "Copied "…" to your clipboard. [Copy]": the button puts that line back on your clipboard, so when two clients reach a
+	 *  count together (the second copy replacing the first) you can still paste each one */
+	static void copiedLine(String line) {
+		Minecraft mc = Minecraft.getInstance(); if (mc.player == null) return;
+		mc.player.sendSystemMessage(copiedMsg(line));
+	}
+	static MutableComponent copiedMsg(String line) {
+		MutableComponent msg = prefix().append(Component.literal("Copied \"" + line + "\" to your clipboard. ").withStyle(ChatFormatting.GRAY));
+		MutableComponent b = Component.literal("[Copy]").withStyle(ChatFormatting.AQUA);
+		b.withStyle(st -> st.withClickEvent(new net.minecraft.network.chat.ClickEvent.CopyToClipboard(line)).withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Click to copy \"" + line + "\" again").withStyle(ChatFormatting.GRAY))));
+		return msg.append(b);
 	}
 	static void announceCount(Carry c) {
 		String base = partyLine(c);

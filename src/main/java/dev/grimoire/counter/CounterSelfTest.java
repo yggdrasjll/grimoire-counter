@@ -180,6 +180,13 @@ final class CounterSelfTest {
 		fresh(); Counter.add("Alex", Counter.parse("dungeon", "f7"), 2); Counter.add("Alex", Counter.parse("dungeon", "m5"), 2); Counter.dungeonFloor = "M5";
 		Counter.handle("[NPC] Mort: Here, I found this map when I first entered the dungeon."); Counter.handle("Master Mode The Catacombs - Floor V"); Counter.handle("☠ Defeated Livid in 03m 02s");
 		check("an F7 and an M5 booked: the M5 run counts the M5 only", Counter.findExact("Alex", "dungeon", "m5").done == 1 && Counter.findExact("Alex", "dungeon", "f7").done == 0);
+		// the count on the clipboard: every 10th, and the last one
+		fresh(); Counter.lastCopied = null; Counter.Carry big = Counter.add("Alex", Counter.parse("void", "4"), 25); big.done = 8; Counter.plus(big); check("9 of 25: not copied", Counter.lastCopied == null);
+		Counter.plus(big); check("10 of 25: copied", "Alex 10/25 - Grimoire".equals(Counter.lastCopied)); Counter.lastCopied = null; Counter.plus(big); check("11 of 25: not copied", Counter.lastCopied == null);
+		big.done = 24; Counter.plus(big); check("the last of 25: copied", "Alex 25/25 - Grimoire".equals(Counter.lastCopied));
+		Counter.lastCopied = null; Counter.Carry small = Counter.add("Steve", Counter.parse("blaze", "4"), 3); Counter.plus(small); Counter.plus(small); check("1 and 2 of 3: not copied", Counter.lastCopied == null);
+		Counter.plus(small); check("a carry of 9 or fewer: copied at the end", "Steve 3/3 - Grimoire".equals(Counter.lastCopied));
+		Counter.lastCopied = null; Counter.D.copyCount = false; Counter.Carry off = Counter.add("Efe", Counter.parse("void", "4"), 1); Counter.plus(off); check("copying switched off: nothing copied", Counter.lastCopied == null); Counter.D.copyCount = true;
 		// the text bars: typing, select all, copy, cut, paste, the arrows, Backspace and Delete
 		CounterScreen cs = new CounterScreen(); CounterScreen.addName = ""; CounterScreen.addAmount = "1"; cs.focusOn("name");
 		int CTRL = org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL, SHIFT = org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;

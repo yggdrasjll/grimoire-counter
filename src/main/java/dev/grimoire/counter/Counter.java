@@ -63,7 +63,7 @@ public final class Counter {
 	public static final class Data {
 		public List<Carry> carries = new ArrayList<>();
 		/** the counter on screen · counting by itself · the count in party chat · progress lines in your own chat · carries offered when a client trades you coins */
-		public boolean hud = true, auto = true, announce = false, chatLines = true, tradeSuggest = true, self = true, killTime = true, killText = true, deathWarn = true, spawnLine = true;
+		public boolean hud = true, auto = true, announce = false, chatLines = true, tradeSuggest = true, self = true, killTime = true, killText = true, deathWarn = true, spawnLine = true, copyCount = true;
 		/** the count in party chat was switched on once (it is on unless you turn it off) */
 		public boolean partyOnce = false;
 		/** said in party chat, with the count behind it, when you count a boss its client died on ("" = nothing extra) */
@@ -772,7 +772,7 @@ public final class Counter {
 			progress("✔ Finished all " + c.total + " " + c.label() + " carries for " + c.player + " in " + dur(now - c.started) + note, ChatFormatting.GREEN);
 			D.carries.remove(c);
 		} else progress(c.player + ": " + c.done + "/" + c.total + " " + c.label() + (took > 0 ? " (" + dur(took) + ")" : "") + note, ChatFormatting.AQUA);
-		announceCount(c);
+		announceCount(c); copyCount(c);
 		save();
 	}
 
@@ -818,8 +818,18 @@ public final class Counter {
 	}
 	/** your own words for a boss counted though its client died: said before the count, "your words / Name 3/10 - Grimoire" */
 	static String annPrefix = null; static final Set<String> deathClaims = new HashSet<>();
+	/** "Name 3/10 - Grimoire", or for a client with several carries "Name 1/1 T2 (Blaze) - Grimoire" */
+	public static String partyLine(Carry c) { return c.player + " " + c.done + "/" + c.total + (c.several ? " " + which(c) : "") + " - Grimoire"; }
+	/** The count on your clipboard, ready to paste: every 10th of a carry, and its last one (so a carry of 9 or fewer is copied once, when it's done). */
+	static String lastCopied = null;
+	static void copyCount(Carry c) {
+		if (!D.copyCount || !(c.done % 10 == 0 || c.done >= c.total) || c.done <= 0) return;
+		lastCopied = partyLine(c);
+		try { Minecraft.getInstance().keyboardHandler.setClipboard(lastCopied); } catch (Throwable ignored) {}
+		info("Copied \"" + lastCopied + "\" to your clipboard.", ChatFormatting.GRAY);
+	}
 	static void announceCount(Carry c) {
-		String base = c.player + " " + c.done + "/" + c.total + (c.several ? " " + which(c) : "") + " - Grimoire";
+		String base = partyLine(c);
 		if (annPrefix != null) announce(annPrefix + " / " + base); else if (D.announce) announce(base);
 	}
 

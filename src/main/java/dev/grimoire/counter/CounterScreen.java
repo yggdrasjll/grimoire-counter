@@ -140,7 +140,7 @@ public final class CounterScreen extends Screen {
 		if (bx + f.width("✔ Boss spawned line") + 14 > x + w) { bx = x; y += 20; }
 		bx += btn(g, f, (D.spawnLine ? "✔ " : "✘ ") + "Boss spawned line", bx, y, mx, my, D.spawnLine, "A line in your chat when a slayer client's boss has spawned, saying whose it is. Only you see it.", () -> { D.spawnLine = !D.spawnLine; Counter.save(); });
 		if (bx + f.width("✔ Client death warning") + 14 > x + w) { bx = x; y += 20; }
-		bx += btn(g, f, (D.deathWarn ? "✔ " : "✘ ") + "Client death warning", bx, y, mx, my, D.deathWarn, "When a slayer client dies while their boss is up (or their boss vanishes and so do they): a red line in your chat, a title and a sound. The boss is gone and nothing counts: they need to spawn a new one - or press [count 1 anyway] on that line.", () -> { D.deathWarn = !D.deathWarn; Counter.save(); });
+		bx += btn(g, f, (D.deathWarn ? "✔ " : "✘ ") + "Client death warning", bx, y, mx, my, D.deathWarn, "When the chat says a slayer client died while their boss was up: a red line in your chat, a title and a sound. The boss is gone and nothing counts: they need to spawn a new one - or press [count 1 anyway] on that line.", () -> { D.deathWarn = !D.deathWarn; Counter.save(); });
 		if (bx + f.width("Move the counter") + 14 > x + w) { bx = x; y += 20; }
 		btn(g, f, "Move the counter", bx, y, mx, my, false, "Drag it where you want it on screen; the wheel sizes it.", () -> { moving = true; focus = null; });
 		y += 24;
@@ -165,10 +165,14 @@ public final class CounterScreen extends Screen {
 			rx -= f.width("−") + 14; btn(g, f, "−", rx, y + 3, mx, my, false, "One fewer done for " + c.player + ".", () -> Counter.minus(c)); rx -= 10;
 			rx -= f.width("more") + 14; btn(g, f, "more", rx, y + 3, mx, my, false, "One more ordered (" + (c.total + 1) + " in all). Shift: ten more.", () -> Counter.setTotal(c, c.total + (shift() ? 10 : 1))); rx -= 2;
 			rx -= f.width("fewer") + 14; btn(g, f, "fewer", rx, y + 3, mx, my, false, "One fewer ordered. Shift: ten fewer.", () -> Counter.setTotal(c, c.total - (shift() ? 10 : 1)));
-			if (Counter.hasRefused(c)) { rx -= f.width("count it") + 14 + 6; btn(g, f, "count it", rx, y + 3, mx, my, true, "A boss of theirs died but wasn't counted (another tier, or no owner name on it): count it.", () -> Counter.claim(c.player)); }
+			if (Counter.hasRefused(c)) { rx -= f.width("count it") + 14 + 6; btn(g, f, "count it", rx, y + 3, mx, my, true, "A boss of theirs died but wasn't counted (another tier, or no owner name on it): count it.", () -> Counter.claim(c)); }
 			// the words on the left take the room the buttons leave
 			int tx = x + 6, room = rx - 6; g.text(f, clip(f, c.player, room - tx), tx, y + 3, MINT, true); tx += f.width(c.player) + 6;
-			if (tx < room) { g.text(f, clip(f, c.label(), room - tx), tx, y + 3, MUTED, false); tx += f.width(c.label()) + 6; }
+			if (tx < room) { // what they're getting: click it for the whole list
+				String lab = clip(f, c.label() + " ▾", room - tx); int lw = f.width(lab); boolean hv = in(mx, my, tx - 2, y + 1, lw + 4, 12) && pick == null;
+				if (hv) { g.fill(tx - 2, y + 1, tx + lw + 2, y + 13, alpha(MINT, 40)); tip = "Click: pick another kind of carry for " + c.player + " from the list. What's done and ordered stays."; }
+				g.text(f, lab, tx, y + 3, hv ? 0xFFFFFFFF : MUTED, false); hits.add(new Object[]{new int[]{tx - 2, y + 1, lw + 4, 12}, (Runnable) () -> pick = c});
+				tx += lw + 6; }
 			if (Counter.bossUp(c) && tx + f.width("SPAWNED") < room) { g.text(f, "SPAWNED", tx, y + 3, ORANGE, true); tx += f.width("SPAWNED") + 6; }
 			double unit = Counter.unitPrice(c); if (unit > 0 && room - tx > 30) g.text(f, clip(f, Counter.coins(unit * c.total) + " for all · " + Counter.coins(unit * (c.total - c.done)) + " to go", room - tx), tx, y + 3, DIM, false);
 			int bw = Math.max(20, rx - x - 12); g.fill(x + 6, y + 16, x + 6 + bw, y + 18, alpha(0x16264E, 255)); g.fill(x + 6, y + 16, x + 6 + (int) (bw * Math.min(1, c.total == 0 ? 0 : (double) c.done / c.total)), y + 18, MOSS);
@@ -183,6 +187,7 @@ public final class CounterScreen extends Screen {
 		String type = TYPES[addType][0]; String[] ts = tiers(type); if (addTier >= ts.length) addTier = ts.length - 1;
 		bx += btn(g, f, TYPES[addType][1] + " ▸", bx, y, mx, my, false, "Click: the next kind of carry · right click: the one before.", () -> { addType = (addType + (lastButton == 1 ? TYPES.length - 1 : 1)) % TYPES.length; addTier = Math.min(addTier, tiers(TYPES[addType][0]).length - 1); });
 		bx += btn(g, f, tierName(type, ts[addTier]) + " ▸", bx, y, mx, my, false, "Click: the next tier or floor · right click: the one before.", () -> { int n = tiers(TYPES[addType][0]).length; addTier = (addTier + (lastButton == 1 ? n - 1 : 1)) % n; });
+		bx += btn(g, f, "list ▾", bx, y, mx, my, false, "Pick the kind of carry from the whole list.", () -> pick = NEW);
 		g.text(f, "×", bx + 2, y + 4, MUTED, false); bx += 12;
 		bx += field(g, f, "amount", addAmount, "1", bx, y, 40, mx, my);
 		bx += btn(g, f, "Add", bx, y, mx, my, true, null, this::addNow);
@@ -209,7 +214,50 @@ public final class CounterScreen extends Screen {
 		y += 2;
 		g.disableScissor();
 		maxScroll = Math.max(0, y + scroll - bottom + 4); scroll = Math.max(0, Math.min(maxScroll, scroll));
+		if (pick != null) { tip = null; picker(g, f, mx, my, W, H); }
 		if (tip != null && in(mx, my, px, top, pw, bottom - top)) g.setTooltipForNextFrame(f, f.split(Component.literal(tip), Math.min(300, W - 40)), mx, my);
+	}
+
+	/** the list of every kind of carry, open for a carry on the page (or for the one being added) */
+	Object pick = null; static final Object NEW = new Object();
+	void picker(GuiGraphicsExtractor g, Font f, int mx, int my, int W, int H) {
+		if (pick instanceof Counter.Carry pc && !Counter.D.carries.contains(pc)) { pick = null; return; }
+		g.fill(0, 0, W, H, alpha(0x040814, 190));
+		hits.add(new Object[]{new int[]{0, 0, W, H}, (Runnable) () -> pick = null}); // a click beside the list closes it
+		Counter.Carry c = pick instanceof Counter.Carry pc ? pc : null;
+		String title = c != null ? "What is " + c.player + " getting?" : "What kind of carry?";
+		String[][] rows = {{"void", "Voidgloom"}, {"blaze", "Inferno"}, {"rev", "Revenant"}, {"tara", "Tarantula"}, {"sven", "Sven"}, {"vamp", "Riftstalker"}, {"kuudra", "Kuudra"}, {"dungeon", "Catacombs"}, {"master", "Master Mode"}};
+		int lw = 0; for (String[] r : rows) lw = Math.max(lw, f.width(r[1])); lw += 10;
+		int pw = Math.min(W - 16, lw + 300), px = (W - pw) / 2, inner = pw - 20;
+		// its height, by laying it out once without drawing
+		int ph = 30; for (String[] r : rows) { int bx = lw, lines = 1; for (String t : pickTiers(r[0])) { int bw = f.width(tierName(pickType(r[0]), t)) + 18; if (bx + bw > inner && bx > lw) { bx = lw; lines++; } bx += bw; } ph += lines * 20; }
+		ph += 14; int py = Math.max(6, (H - ph) / 2);
+		g.fill(px, py, px + pw, py + ph, alpha(0x081024, 250)); g.outline(px, py, pw, ph, alpha(GILT, 220)); g.fill(px, py, px + pw, py + 2, GILT);
+		hits.add(new Object[]{new int[]{px, py, pw, ph}, (Runnable) () -> {}}); // a click on the list itself keeps it open
+		g.text(f, clip(f, title, inner), px + 10, py + 9, GILT, true);
+		int y = py + 26;
+		for (String[] r : rows) {
+			String type = pickType(r[0]); g.text(f, r[1], px + 10, y + 4, TEXT, false);
+			int bx = px + 10 + lw;
+			for (String t : pickTiers(r[0])) {
+				String lab = tierName(type, t); int bw = f.width(lab) + 18;
+				if (bx + bw > px + 10 + inner && bx > px + 10 + lw) { bx = px + 10 + lw; y += 20; }
+				boolean on = c != null ? c.type.equals(type) && c.tier.equals(t) : TYPES[addType][0].equals(type) && tiers(type)[Math.min(addTier, tiers(type).length - 1)].equals(t);
+				btn(g, f, lab, bx, y, mx, my, on, null, () -> choose(type, t)); bx += bw;
+			}
+			y += 20;
+		}
+		g.text(f, clip(f, "Click one · Esc or a click beside the list: leave it as it is", inner), px + 10, y + 2, DIM, false);
+	}
+	static String pickType(String row) { return row.equals("master") ? "dungeon" : row; }
+	static List<String> pickTiers(String row) {
+		List<String> all = Counter.tiersOf(pickType(row)); if (!row.equals("dungeon") && !row.equals("master")) return all;
+		List<String> l = new ArrayList<>(); for (String t : all) if (t.startsWith("m") == row.equals("master")) l.add(t); return l;
+	}
+	void choose(String type, String tier) {
+		if (pick instanceof Counter.Carry c) Counter.setType(c, new String[]{type.equals("kuudra") ? "kuudra" : type.equals("dungeon") ? "dungeon" : "slayer", type, tier});
+		else { for (int i = 0; i < TYPES.length; i++) if (TYPES[i][0].equals(type)) addType = i; String[] ts = tiers(type); for (int i = 0; i < ts.length; i++) if (ts[i].equals(tier)) addTier = i; }
+		pick = null;
 	}
 
 	int lastButton = 0;
@@ -238,11 +286,13 @@ public final class CounterScreen extends Screen {
 	@Override public boolean mouseReleased(MouseButtonEvent e) { selecting = false; if (dragging) { dragging = false; Counter.save(); } return true; }
 	@Override public boolean mouseScrolled(double mx, double my, double sx, double sy) {
 		if (moving) { Counter.D.hudScale = Math.max(0.5f, Math.min(3f, Math.round((Counter.D.hudScale + (sy > 0 ? 0.1f : -0.1f)) * 10) / 10f)); Counter.save(); return true; }
+		if (pick != null) return true;
 		scroll = Math.max(0, Math.min(maxScroll, scroll - (int) (sy * 24))); return true;
 	}
 	@Override public boolean keyPressed(KeyEvent e) {
 		int k = e.key();
 		if (moving) { if (k == GLFW.GLFW_KEY_ESCAPE || k == GLFW.GLFW_KEY_ENTER || k == GLFW.GLFW_KEY_KP_ENTER) { moving = false; dragging = false; Counter.save(); } return true; }
+		if (pick != null) { if (k == GLFW.GLFW_KEY_ESCAPE) pick = null; return true; } // the list is open: Esc leaves it
 		if (focus != null) {
 			String v = value(focus); int len = v.length(); caret = Math.max(0, Math.min(len, caret)); anchor = Math.max(0, Math.min(len, anchor));
 			int a = Math.min(caret, anchor), b = Math.max(caret, anchor); boolean shift = e.hasShiftDown(), ctrl = e.hasControlDown();

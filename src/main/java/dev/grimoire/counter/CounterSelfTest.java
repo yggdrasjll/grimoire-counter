@@ -29,7 +29,8 @@ final class CounterSelfTest {
 		if (t == 140) { sample(); mc.gui.setScreen(new CounterScreen()); say("SHOT page"); }
 		if (t == 200 && mc.gui.screen() instanceof CounterScreen cs) { cs.scroll = 9999; say("SHOT prices"); }
 		if (t == 260 && mc.gui.screen() instanceof CounterScreen cs) { cs.moving = true; say("SHOT move"); }
-		if (t == 320) { mc.gui.setScreen(null); say("done"); }
+		if (t == 320 && mc.gui.screen() instanceof CounterScreen cs) { cs.moving = false; cs.scroll = 0; cs.pick = Counter.D.carries.get(0); say("SHOT pick"); }
+		if (t == 380) { mc.gui.setScreen(null); say("done"); }
 	}
 	/** a counter of its own, in memory */
 	static void fresh() { Counter.D = new Counter.Data(); Counter.D.chatLines = false; Counter.dungeonStarted = false; Counter.kuudraStarted = false; Counter.dungeonFloor = null; Counter.kuudraTier = null; Counter.dirtyAt = 0; }
@@ -67,7 +68,8 @@ final class CounterSelfTest {
 		// --- by hand
 		fresh(); Counter.Carry c = Counter.add("Alex", Counter.parse("void", "4"), 3); Counter.plus(c); Counter.plus(c); Counter.minus(c); check("plus plus minus = 1", c.done == 1);
 		Counter.setTotal(c, 0); check("never fewer than one ordered", c.total == 3); Counter.add("Alex", Counter.parse("void", "4"), 2); check("more of the same adds up", c.total == 5);
-		Counter.add("Alex", Counter.parse("void", "3"), 2); check("another tier replaces it", Counter.find("Alex", "slayer").tier.equals("3") && Counter.D.carries.size() == 1);
+		Counter.add("Alex", Counter.parse("void", "3"), 2); check("another tier is another carry beside it", Counter.findExact("Alex", "void", "3") != null && Counter.findExact("Alex", "void", "4") == c && Counter.D.carries.size() == 2);
+		Counter.remove(Counter.findExact("Alex", "void", "3"));
 		Counter.D.auto = false; Counter.add("Alex", Counter.parse("dungeon", "f7"), 1); Counter.dungeonFloor = "F7"; Counter.handle("[NPC] Mort: Here, I found this map when I first entered the dungeon."); Counter.handle("The Catacombs - Floor VII"); Counter.handle("☠ Defeated Necron in 05m 12s");
 		check("counting by itself off: nothing counts", done("Alex") >= 0 && Counter.find("Alex", "dungeon").done == 0);
 		// --- the words on a slayer boss
@@ -144,6 +146,40 @@ final class CounterSelfTest {
 		Counter.spawnSaid = null; Counter.spawnTick(t0 + 50); check("said once while it's up", Counter.spawnSaid == null);
 		Counter.bosses.clear(); Counter.spawnTick(t0 + 100); Counter.bosses.put(-81, sb); Counter.spawnTick(t0 + 150); check("its tag swapped: not said again", Counter.spawnSaid == null);
 		Counter.D.spawnLine = false; Counter.bosses.clear(); Counter.spawnTick(t0 + 200); Counter.spawnSaidAt.clear(); Counter.bosses.put(-82, sb); Counter.spawnTick(t0 + 250); check("switched off: not said", Counter.spawnSaid == null); Counter.D.spawnLine = true; Counter.bosses.clear(); Counter.upSince.clear();
+		// one fight per client: an Inferno that leaves for its demons and comes back is the same boss
+		fresh(); Counter.lastLoot.clear(); Counter.bosses.clear(); Counter.fights.clear(); Counter.diedBy.clear(); Counter.upSince.clear(); Counter.spawnSaidAt.clear(); Counter.spawnSaid = null; Counter.Carry fc = Counter.add("Alex", Counter.parse("blaze", "4"), 5);
+		long f0 = System.currentTimeMillis() - 40_000; Counter.Boss b1 = new Counter.Boss(); b1.owner = "Alex"; b1.type = "blaze"; b1.tier = "4"; b1.spawnAt = f0; b1.hitAt = f0 + 2000; b1.seen = f0 + 12_000; Counter.fight(b1, f0 + 12_000);
+		b1.seen = System.currentTimeMillis(); Counter.bosses.put(-90, b1); Counter.spawnTick(f0 + 12_000); check("the fight's boss: spawn said", "Alex's Inferno T4 spawned.".equals(Counter.spawnSaid)); Counter.spawnSaid = null; Counter.bosses.clear(); Counter.spawnTick(f0 + 13_000);
+		for (long t = f0 + 13_000; t < f0 + 34_000; t += 1000) Counter.fightSeen("Alex", t); // its demons, with the owner line over them
+		Counter.Boss b2 = new Counter.Boss(); b2.owner = "Alex"; b2.type = "blaze"; b2.tier = "4"; b2.spawnAt = f0 + 34_000; b2.hitAt = f0 + 34_000; b2.seen = f0 + 34_000; Counter.fight(b2, f0 + 34_000);
+		check("back from its demons: the same boss, spawn and first hit kept", b2.spawnAt == f0 && b2.hitAt == f0 + 2000);
+		b2.seen = System.currentTimeMillis(); Counter.bosses.put(-91, b2); Counter.spawnTick(f0 + 34_000); check("back from its demons: not said to have spawned again", Counter.spawnSaid == null); Counter.bosses.clear();
+		b2.seen = f0 + 39_500; b2.zeroAt = f0 + 38_200; check("killed when its health read nothing, not when its tag went", Counter.killAt(b2) == f0 + 38_200);
+		Counter.lastLoot.put("alex", f0 + 39_600); Counter.Boss b3 = new Counter.Boss(); b3.owner = "Alex"; b3.type = "blaze"; b3.tier = "4"; b3.spawnAt = f0 + 60_000; b3.seen = b3.spawnAt; Counter.fight(b3, f0 + 60_000);
+		check("after it counted: the next boss is a new fight", b3.spawnAt == f0 + 60_000);
+		Counter.lastLoot.clear(); Counter.fights.clear(); Counter.Boss b4 = new Counter.Boss(); b4.owner = "Alex"; b4.type = "blaze"; b4.tier = "4"; b4.spawnAt = f0; b4.seen = f0; Counter.fight(b4, f0);
+		Counter.Boss b5 = new Counter.Boss(); b5.owner = "Alex"; b5.type = "blaze"; b5.tier = "4"; b5.spawnAt = f0 + 30_000; b5.seen = b5.spawnAt; Counter.fight(b5, f0 + 30_000);
+		check("nothing of it seen for a while: a new fight", b5.spawnAt == f0 + 30_000); Counter.fights.clear(); Counter.bosses.clear(); Counter.upSince.clear();
+		Counter.Boss b6 = new Counter.Boss(); b6.owner = "Alex"; b6.type = "blaze"; b6.tier = "4"; b6.spawnAt = System.currentTimeMillis() - 20_000; b6.seen = System.currentTimeMillis() - 6000; Counter.fight(b6, b6.seen);
+		Counter.fightSeen("Alex", System.currentTimeMillis()); fc.diedAt = 0; fc.deaths = 0; Counter.handle(" ☠ Alex was killed by Typhoeus."); check("died to a demon while the Inferno is away: warned", fc.deaths == 1);
+		Counter.fights.clear(); fc.diedAt = 0;
+		// another kind of carry for the same client, from the list
+		check("the list: Inferno tiers", Counter.tiersOf("blaze").equals(List.of("1", "2", "3", "4")) && Counter.tiersOf("dungeon").get(0).equals("e") && Counter.tiersOf("dungeon").size() == 15);
+		fc.done = 2; check("carry set to another kind: count kept", Counter.setType(fc, Counter.parse("void", "4")) && fc.type.equals("void") && fc.tier.equals("4") && fc.done == 2 && fc.total == 5);
+		Counter.add("Alex", Counter.parse("dungeon", "f7"), 1); check("can't become a carry they already have", !Counter.setType(fc, Counter.parse("dungeon", "f7")) && fc.kind.equals("slayer"));
+		// several carries for one client: each counts only its own tier, and the party count says which
+		fresh(); Counter.lastLoot.clear(); Counter.bosses.clear(); Counter.fights.clear(); Counter.diedBy.clear(); Counter.annQ.clear(); Counter.annSent = null; Counter.D.announce = true;
+		Counter.Carry m2 = Counter.add("Alex", Counter.parse("blaze", "2"), 1), m3 = Counter.add("Alex", Counter.parse("blaze", "3"), 2); check("a T2 and a T3 for one client", Counter.D.carries.size() == 2 && m2.several && m3.several);
+		Counter.Carry solo = Counter.add("Steve", Counter.parse("blaze", "3"), 2); Counter.plus(solo); check("one carry only: the plain count", "Steve 1/2 - Grimoire".equals(Counter.annQ.peekLast()));
+		Counter.plus(m3); check("the T3 counted: the T2 untouched", m3.done == 1 && m2.done == 0 && "Alex 1/2 T3 (Blaze) - Grimoire".equals(Counter.annQ.peekLast()));
+		Counter.plus(m2); check("the T2 done, said with its tier", Counter.findExact("Alex", "blaze", "2") == null && "Alex 1/1 T2 (Blaze) - Grimoire".equals(Counter.annQ.peekLast()));
+		Counter.plus(m3); check("the one left still says its tier", "Alex 2/2 T3 (Blaze) - Grimoire".equals(Counter.annQ.peekLast())); Counter.annQ.clear(); Counter.D.announce = false;
+		fresh(); Counter.D.self = true; Counter.lastLoot.clear(); Counter.add(me, Counter.parse("blaze", "2"), 2); Counter.add(me, Counter.parse("blaze", "4"), 2);
+		Counter.handle("  SLAYER BOSS! The Inferno Demonlord IV spawned!"); Counter.handle("  SLAYER QUEST COMPLETE!"); check("own T4 boss: the T4 carry, not the T2", Counter.findExact(me, "blaze", "4").done == 1 && Counter.findExact(me, "blaze", "2").done == 0);
+		Counter.lastLoot.clear(); Counter.handle("  SLAYER BOSS! The Inferno Demonlord III spawned!"); Counter.handle("  SLAYER QUEST COMPLETE!"); check("own T3 boss: neither", Counter.findExact(me, "blaze", "4").done == 1 && Counter.findExact(me, "blaze", "2").done == 0);
+		fresh(); Counter.add("Alex", Counter.parse("dungeon", "f7"), 2); Counter.add("Alex", Counter.parse("dungeon", "m5"), 2); Counter.dungeonFloor = "M5";
+		Counter.handle("[NPC] Mort: Here, I found this map when I first entered the dungeon."); Counter.handle("Master Mode The Catacombs - Floor V"); Counter.handle("☠ Defeated Livid in 03m 02s");
+		check("an F7 and an M5 booked: the M5 run counts the M5 only", Counter.findExact("Alex", "dungeon", "m5").done == 1 && Counter.findExact("Alex", "dungeon", "f7").done == 0);
 		// the text bars: typing, select all, copy, cut, paste, the arrows, Backspace and Delete
 		CounterScreen cs = new CounterScreen(); CounterScreen.addName = ""; CounterScreen.addAmount = "1"; cs.focusOn("name");
 		int CTRL = org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL, SHIFT = org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;

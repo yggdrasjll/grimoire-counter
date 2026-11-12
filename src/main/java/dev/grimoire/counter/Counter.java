@@ -48,6 +48,8 @@ public final class Counter {
 		public String player, kind, type, tier; // kind: slayer|dungeon|kuudra
 		public int total, done;
 		public long started, last;
+		/** this client has (or had) several carries at once: the count in party chat says which one */
+		public boolean several;
 		public transient long diedAt; public transient int deaths; // their deaths with a boss up, this session
 		public transient String lastKill; // "21.3s": how long their last boss took
 		public String label() {
@@ -62,6 +64,8 @@ public final class Counter {
 		public List<Carry> carries = new ArrayList<>();
 		/** the counter on screen · counting by itself · the count in party chat · progress lines in your own chat · carries offered when a client trades you coins */
 		public boolean hud = true, auto = true, announce = false, chatLines = true, tradeSuggest = true, self = true, killTime = true, killText = true, deathWarn = true, spawnLine = true;
+		/** the count in party chat was switched on once (it is on unless you turn it off) */
+		public boolean partyOnce = false;
 		/** said in party chat, with the count behind it, when you count a boss its client died on ("" = nothing extra) */
 		public String deathMsg = "";
 		public int hudX = 6, hudY = 40; public float hudScale = 1f;
@@ -104,6 +108,8 @@ public final class Counter {
 		if (d.carries == null) d.carries = new ArrayList<>();
 		if (d.prices == null) d.prices = new LinkedHashMap<>();
 		if (d.hudScale <= 0) d.hudScale = 1f;
+		if (!d.partyOnce) { d.partyOnce = true; d.announce = true; }
+		for (Carry c : d.carries) { int n = 0; for (Carry o : d.carries) if (o.player.equalsIgnoreCase(c.player)) n++; if (n > 1) c.several = true; }
 		d.carries.removeIf(c -> c == null || c.player == null || c.kind == null || c.type == null || c.tier == null);
 		return d;
 	}
@@ -142,14 +148,37 @@ public final class Counter {
 		}
 		return null;
 	}
-	/** A new carry for a client, or more of the one they have (a different one of the same kind replaces it). */
+	/** A new carry for a client, or more of the same one. A client can have several at once (a T2 and a T3, a slayer
+	 *  and a dungeon floor): each counts only its own boss, tier or floor. */
 	public static Carry add(String player, String[] kt, int amount) {
-		Carry c = find(player, kt[0]);
-		if (c != null && c.type.equals(kt[1]) && c.tier.equals(kt[2])) { c.total += amount; save(); return c; }
-		if (c != null) D.carries.remove(c);
+		Carry c = findExact(player, kt[1], kt[2]);
+		if (c != null) { c.total += amount; save(); return c; }
 		c = new Carry(); c.player = player; c.kind = kt[0]; c.type = kt[1]; c.tier = kt[2]; c.total = amount;
-		D.carries.add(c); save();
+		D.carries.add(c); markSeveral(player); save();
 		return c;
+	}
+	public static Carry findExact(String player, String type, String tier) { for (Carry c : D.carries) if (c.player.equalsIgnoreCase(player) && c.type.equals(type) && c.tier.equals(tier)) return c; return null; }
+	static void markSeveral(String player) { int n = 0; for (Carry c : D.carries) if (c.player.equalsIgnoreCase(player)) n++; if (n > 1) for (Carry c : D.carries) if (c.player.equalsIgnoreCase(player)) c.several = true; }
+	/** The slayer carry a client's boss is for right now: the one of the boss that's up (or of the fight going on), else their first. */
+	static Carry slayerNow(String player) {
+		Boss up = bossOf(player); Carry c = up != null && up.type != null ? findExact(player, up.type, up.tier) : null; if (c != null) return c;
+		Fight f = fights.get(player.toLowerCase(Locale.ROOT)); if (f != null && System.currentTimeMillis() - f.seen < FIGHT_GAP) { c = findExact(player, f.type, f.tier); if (c != null) return c; }
+		return find(player, "slayer");
+	}
+	/** The same client, another kind of carry (picked from the list on the page). What's done and ordered stays. */
+	public static boolean setType(Carry c, String[] kt) {
+		if (c == null || kt == null) return false;
+		if (c.kind.equals(kt[0]) && c.type.equals(kt[1]) && c.tier.equals(kt[2])) return true;
+		Carry other = findExact(c.player, kt[1], kt[2]);
+		if (other != null && other != c) { info(c.player + " already has a " + other.label() + " carry: remove that one first.", ChatFormatting.RED); return false; }
+		c.kind = kt[0]; c.type = kt[1]; c.tier = kt[2]; c.lastKill = null; refused.remove(c.player.toLowerCase(Locale.ROOT)); save();
+		return true;
+	}
+	/** the tiers or floors the counter knows for a kind of carry, in order */
+	public static List<String> tiersOf(String type) {
+		List<String> l = new ArrayList<>(); for (String[] r : PRICE_ROWS) if (r[0].equals(type)) l.add(r[1]);
+		l.sort(Comparator.comparingInt(t -> t.equals("e") ? 0 : t.startsWith("f") ? Integer.parseInt(t.substring(1)) : t.startsWith("m") ? 10 + Integer.parseInt(t.substring(1)) : Integer.parseInt(t)));
+		return l;
 	}
 	public static Carry find(String player, String kind) { for (Carry c : D.carries) if (c.player.equalsIgnoreCase(player) && (kind == null || c.kind.equals(kind))) return c; return null; }
 	public static void remove(Carry c) { D.carries.remove(c); save(); }
@@ -186,7 +215,7 @@ public final class Counter {
 	/** When an owner line was last seen next to any boss (yours or a stranger's). */
 	static long anyOwnerLineAt = 0;
 
-	static final class Boss { String owner, type, tier, name; double firstHp = -1, lastHp = -1; Vec3 pos; long seen, counted, goneAt, spawnAt, hitAt, dyingAt; int tagId, mobId = -1; boolean guessed; }
+	static final class Boss { String owner, type, tier, name; double firstHp = -1, lastHp = -1; Vec3 pos; long seen, counted, goneAt, spawnAt, hitAt, dyingAt, dyingFrom, zeroAt; int tagId, mobId = -1; boolean guessed; }
 	static final Map<Integer, Boss> bosses = new HashMap<>();
 	static String dungeonFloor = null; static Set<String> dungeonStart = new HashSet<>(); static long dungeonEndAt = 0; static boolean dungeonStarted = false;
 	static String kuudraTier = null; static Set<String> kuudraStart = new HashSet<>(); static boolean kuudraStarted = false;
@@ -217,19 +246,20 @@ public final class Counter {
 	static String ownType = null, ownTier = null; static long ownSpawnAt = 0;
 	static void ownBoss(long now) {
 		Minecraft mc = Minecraft.getInstance();
-		String me = mc.player != null ? mc.player.getGameProfile().name() : mc.getUser().getName(); Carry c = find(me, "slayer"); if (c == null || c.done >= c.total) return;
+		String me = mc.player != null ? mc.player.getGameProfile().name() : mc.getUser().getName(); Carry c = find(me, "slayer"); if (c == null) return;
 		String lk = me.toLowerCase(Locale.ROOT); Long last = lastLoot.get(lk); if (last != null && now - last < GHOST_MS) return;
 		// which boss it was: the "SLAYER BOSS! The … spawned!" line you were sent when it came, else the quest on your scoreboard
-		long spawned = 0;
-		if (ownType != null && now - ownSpawnAt < 1_200_000L) { String type = ownType, tier = ownTier; ownType = null; spawned = ownSpawnAt;
-			if (!(type.equals(c.type) && tier.equals(c.tier))) { progress("Your boss wasn't counted: it was a " + SLAYER_NAMES.getOrDefault(type, type) + " T" + tier + ", not your " + c.label() + ".", ChatFormatting.GRAY); return; } }
+		String type = null, tier = null; long spawned = 0;
+		if (ownType != null && now - ownSpawnAt < 1_200_000L) { type = ownType; tier = ownTier; ownType = null; spawned = ownSpawnAt; }
 		else if (mc.level != null) try { for (String line : sidebar(mc)) { Matcher q = OWN_QUEST.matcher(line.trim()); if (!q.find()) continue;
-			String type = BOSS_TYPE.get(q.group(1)), tier = q.group(2) == null ? "5" : String.valueOf(roman(q.group(2)));
-			if (type != null && !(type.equals(c.type) && tier.equals(c.tier))) { progress("Your boss wasn't counted: it was a " + SLAYER_NAMES.getOrDefault(type, type) + " T" + tier + ", not your " + c.label() + ".", ChatFormatting.GRAY); return; }
-			break; } } catch (Throwable ignored) {}
+			type = BOSS_TYPE.get(q.group(1)); tier = q.group(2) == null ? "5" : String.valueOf(roman(q.group(2))); break; } } catch (Throwable ignored) {}
+		if (type != null) { Carry exact = findExact(me, type, tier);
+			if (exact == null) { progress("Your boss wasn't counted: it was a " + SLAYER_NAMES.getOrDefault(type, type) + " T" + tier + ", not your " + c.label() + ".", ChatFormatting.GRAY); return; }
+			c = exact; }
+		if (c.done >= c.total) return;
 		// how long it took: from the line that said it spawned (else from when its name tag was first seen) and from its first hit
 		Boss mine = null; for (Boss b : bosses.values()) if (b.owner != null && b.owner.equalsIgnoreCase(me) && now - b.seen < 6000 && (mine == null || b.seen > mine.seen)) mine = b;
-		long kill = mine != null ? mine.seen : now; if (spawned == 0 && mine != null) spawned = mine.spawnAt;
+		long kill = mine != null ? killAt(mine) : now; if (spawned == 0 && mine != null) spawned = mine.spawnAt;
 		long sk = spawned > 0 && kill > spawned ? kill - spawned : 0, hk = mine != null && mine.hitAt > 0 && kill >= mine.hitAt ? kill - mine.hitAt : 0;
 		if (mine != null) { mine.counted = now; if (mine.pos != null && (sk > 0 || hk > 0)) KillText.show(mine.pos, secs(hk > 0 ? hk : sk)); }
 		lastLoot.put(lk, now); count(c, "", sk, hk);
@@ -238,7 +268,7 @@ public final class Counter {
 		Matcher m; long now = System.currentTimeMillis();
 		heard(s);
 		if (s.contains("SLAYER BOSS") && !s.matches("^(?:\\[[^\\]]+] ?)*\\w{1,16}: .*") && !s.startsWith("Party >") && !s.startsWith("Guild >") && (m = OWN_SPAWN.matcher(s)).find()) { ownType = BOSS_TYPE.get(m.group(1)); ownTier = m.group(2) == null ? "5" : String.valueOf(roman(m.group(2))); ownSpawnAt = now; }
-		if ((m = DEATH.matcher(s)).find() && !m.group(1).equals("You")) { Carry dc = find(m.group(1), "slayer"); if (dc != null) deathLine(dc, m.group(2), now); }
+		if ((m = DEATH.matcher(s)).find() && !m.group(1).equals("You")) { Carry dc = slayerNow(m.group(1)); if (dc != null) deathLine(dc, m.group(2), now); }
 		if ((m = TRADE_DONE.matcher(s)).find()) { trader = m.group(1); traderAt = now; return; }
 		if (trader != null && now - traderAt < 3000 && (m = TRADE_COINS.matcher(s)).find()) { tradeCoins(trader, m.group(1), m.group(2)); trader = null; return; }
 		if (!D.auto) return;
@@ -305,9 +335,34 @@ public final class Counter {
 		}
 		double hp = hp(hpText); { double mx = hpMax(hpText); if (mx > 0 && mx > b.firstHp) b.firstHp = mx; } // (a tag that says what it started with: its health is known from the first look)
 		if (hp >= 0) { if (b.firstHp < 0 || hp > b.firstHp) b.firstHp = hp; if (b.hitAt == 0 && b.firstHp > 0 && hp < b.firstHp) b.hitAt = now; b.lastHp = hp; }
+		if (hp == 0 && b.firstHp > 0) { if (b.zeroAt == 0) b.zeroAt = now; } else if (hp > 0) b.zeroAt = 0; // the moment its health read nothing left
 		b.seen = now; b.tagId = tag.getId();
+		fight(b, now);
 		return true;
 	}
+	/** One fight per client: a boss whose name tag is swapped, or that leaves for a while and comes back (an Inferno
+	 *  Demonlord while its two demons are up), is still the same boss - its spawn and first hit are kept, so its kill
+	 *  time is the whole fight's. A fight ends when it counts, when the client dies, or when nothing of it (no boss
+	 *  tag, no owner line) was seen for a while. */
+	static final class Fight { String type, tier; long spawnAt, hitAt, seen; boolean said; }
+	static final Map<String, Fight> fights = new HashMap<>();
+	static final long FIGHT_GAP = 15_000;
+	static void fight(Boss b, long now) {
+		if (b.owner == null || b.type == null || b.guessed) return;
+		String k = b.owner.toLowerCase(Locale.ROOT); Fight f = fights.get(k); Long cnt = lastLoot.get(k), dd = diedBy.get(k);
+		boolean same = f != null && b.type.equals(f.type) && Objects.equals(b.tier, f.tier) && now - f.seen < FIGHT_GAP
+			&& !(cnt != null && cnt >= f.spawnAt) && !(dd != null && dd >= f.spawnAt);
+		if (!same) { f = new Fight(); f.type = b.type; f.tier = b.tier; f.spawnAt = b.spawnAt; f.hitAt = b.hitAt; fights.put(k, f); }
+		else {
+			if (f.spawnAt > 0 && (b.spawnAt == 0 || f.spawnAt < b.spawnAt)) b.spawnAt = f.spawnAt;
+			if (f.hitAt > 0 && (b.hitAt == 0 || f.hitAt < b.hitAt)) b.hitAt = f.hitAt; else if (b.hitAt > 0 && f.hitAt == 0) f.hitAt = b.hitAt;
+		}
+		f.seen = now;
+	}
+	/** an owner line of theirs is up (over the boss, or over an Inferno's demons): their fight goes on */
+	static void fightSeen(String owner, long now) { Fight f = fights.get(owner.toLowerCase(Locale.ROOT)); if (f != null && now - f.seen < FIGHT_GAP) f.seen = now; }
+	/** When it died: the first moment its health read nothing or it began to fall - not when its name tag went, which lingers. */
+	static long killAt(Boss b) { long k = b.seen; if (b.zeroAt > 0 && b.zeroAt < k) k = b.zeroAt; if (b.dyingFrom > 0 && b.dyingFrom < k) k = b.dyingFrom; return k; }
 	/** Whether a mob can be this slayer's boss (its body is always the same kind of mob; null type: any). */
 	static boolean bodyFits(Entity e, String type) {
 		if (type == null) return true;
@@ -341,7 +396,7 @@ public final class Counter {
 			for (var p : mc.level.players()) {
 				if (p.getUUID().version() != 4 || p.distanceToSqr(mob) > 225) continue;
 				String name = p.getGameProfile().name();
-				Carry c = find(name, "slayer"); if (c == null || (type != null && !type.equals(c.type)) || (tier != null && c.tier != null && !c.tier.equals(tier))) continue;
+				Carry c = type != null && tier != null ? findExact(name, type, tier) : find(name, "slayer"); if (c == null) continue;
 				if (busy.contains(name.toLowerCase(Locale.ROOT))) continue;
 				Vec3 d = p.getEyePosition().subtract(eye); double len = d.length();
 				double ang = len < 0.001 ? 0 : Math.toDegrees(Math.acos(Math.max(-1, Math.min(1, look.dot(d.scale(1 / len))))));
@@ -356,7 +411,7 @@ public final class Counter {
 	static boolean burrowed(Boss b) { return "tara".equals(b.type) && !(b.firstHp > 0 && b.lastHp >= 0 && b.lastHp <= b.firstHp * 0.2); }
 	/** A client's boss that died but isn't counted: a chat note with a [count it] button. */
 	static void refuse(Carry c, String why, long now) {
-		refused.put(c.player.toLowerCase(Locale.ROOT), now); deathClaims.remove(c.player.toLowerCase(Locale.ROOT));
+		refused.put(c.player.toLowerCase(Locale.ROOT), now); refusedCarry.put(c.player.toLowerCase(Locale.ROOT), c); deathClaims.remove(c.player.toLowerCase(Locale.ROOT));
 		Minecraft mc = Minecraft.getInstance(); if (mc.player == null) return;
 		MutableComponent b = Component.literal("[count it]").withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD).withStyle(st -> st
 			.withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("gcounter claim " + c.player))
@@ -365,7 +420,12 @@ public final class Counter {
 	}
 	/** [count it] / /gcounter claim: counts the boss that wasn't counted (or +1 if there's none). */
 	public static boolean claim(String player) {
-		Carry c = find(player, "slayer"); if (c == null) c = find(player, null); if (c == null) return false;
+		Carry c = refusedCarry.remove(player.toLowerCase(Locale.ROOT)); if (c != null && !D.carries.contains(c)) c = null; // the carry the uncounted boss was noted for
+		if (c == null) c = find(player, "slayer"); if (c == null) c = find(player, null); if (c == null) return false;
+		return claim(c);
+	}
+	public static boolean claim(Carry c) {
+		{ Carry noted = refusedCarry.get(c.player.toLowerCase(Locale.ROOT)); if (noted == c) refusedCarry.remove(c.player.toLowerCase(Locale.ROOT)); }
 		Long at = refused.remove(c.player.toLowerCase(Locale.ROOT));
 		boolean fresh = at != null && System.currentTimeMillis() - at < 600_000;
 		boolean death = deathClaims.remove(c.player.toLowerCase(Locale.ROOT)) && fresh; // the boss they died on, counted all the same
@@ -374,7 +434,8 @@ public final class Counter {
 		try { count(c, death ? " (counted though they died)" : fresh ? " (claimed)" : " (claimed by hand)"); } finally { annPrefix = null; }
 		return true;
 	}
-	public static boolean hasRefused(Carry c) { Long at = refused.get(c.player.toLowerCase(Locale.ROOT)); return at != null && System.currentTimeMillis() - at < 600_000; }
+	static final Map<String, Carry> refusedCarry = new HashMap<>();
+	public static boolean hasRefused(Carry c) { String k = c.player.toLowerCase(Locale.ROOT); Long at = refused.get(k); Carry noted = refusedCarry.get(k); return at != null && System.currentTimeMillis() - at < 600_000 && (noted == null || noted == c || !D.carries.contains(noted)); }
 
 	// ---------- changes by hand (they post the new count in party chat too) ----------
 	public static void plus(Carry c) { if (c.done >= c.total) return; count(c, " (added by hand)"); }
@@ -404,7 +465,7 @@ public final class Counter {
 			}
 		}
 		drainAnnounce(mc, now);
-		failTick(mc, now); deathTick(now);
+		deathTick(now);
 		// boss name tags are read every tick (50 ms)
 		boolean anySlayer = false; for (Carry c : D.carries) if (c.kind.equals("slayer")) anySlayer = true;
 		if (!anySlayer || !D.auto) { bosses.clear(); return; }
@@ -420,7 +481,7 @@ public final class Counter {
 		}
 		Set<Integer> alive = new HashSet<>(), usedTags = new HashSet<>();
 		for (Entity o : owners) {
-			String owner = ownerOf.get(o.getId());
+			String owner = ownerOf.get(o.getId()); fightSeen(owner, now);
 			// the boss tag straight above or below it (Hypixel stacks the owner line with the boss's name)
 			Entity tag = null; double bd = 1e9;
 			for (Entity t : tags) { if (usedTags.contains(t.getId())) continue; double dx = t.getX() - o.getX(), dz = t.getZ() - o.getZ(), dy = Math.abs(t.getY() - o.getY()); double h = dx * dx + dz * dz; if (h > 2.25 || dy > 3.5) continue; double d = h + dy * dy * 0.25; if (d < bd) { bd = d; tag = t; } }
@@ -479,13 +540,15 @@ public final class Counter {
 		for (Boss b : bosses.values()) if (b.owner != null && b.owner.equalsIgnoreCase(player) && b.goneAt == 0 && now - b.seen < 1500 && !(cnt != null && b.spawnAt > cnt && now - cnt < GHOST_MS)) return b;
 		return null;
 	}
-	/** A death line for one of your slayer clients: a warning if their boss was up (or it's what killed them). */
+	/** A death line for one of your slayer clients: a warning if their boss was up (or it's what killed them). Only this
+	 *  line says a client died: a boss that vanishes with health left may be an Inferno gone for its demons. */
 	static void deathLine(Carry c, String reason, long now) {
 		String lk = c.player.toLowerCase(Locale.ROOT); Long cnt = lastLoot.get(lk); Boss up = bossOf(c.player);
 		if (up == null && cnt != null && now - cnt < 5000) return; // their boss had just died and counted: they died after it, nothing lost
 		boolean byBoss = false; for (String n : BOSS_TYPE.keySet()) if (reason.contains(n)) byBoss = true;
 		for (Boss o : bosses.values()) if (up == null && o.owner != null && o.owner.equalsIgnoreCase(c.player) && o.counted == 0 && now - o.seen < 4000) up = o;
-		if (!byBoss && up == null) return; // died to something else between bosses: nothing lost
+		Fight ft = fights.get(lk); boolean fightOn = ft != null && now - ft.seen < 4000 && !(cnt != null && cnt >= ft.spawnAt); // an Inferno gone for its demons is still up
+		if (!byBoss && up == null && !fightOn) return; // died to something else between bosses: nothing lost
 		// their boss is dying too: whether it counts is known in a moment (it does if it died first)
 		if (up != null && dying(Minecraft.getInstance(), up, now)) { dyingDeaths.put(lk, new Object[]{now, reason}); return; }
 		clientDied(c, reason, true);
@@ -497,37 +560,17 @@ public final class Counter {
 		for (Iterator<Map.Entry<String, Object[]>> it = dyingDeaths.entrySet().iterator(); it.hasNext(); ) {
 			var e = it.next(); long at = (Long) e.getValue()[0]; if (now - at < 1500) continue;
 			it.remove();
-			Carry c = find(e.getKey(), "slayer"); if (c == null) continue; // their last one: it counted and the carry is done
+			Carry c = slayerNow(e.getKey()); if (c == null) continue; // their last one: it counted and the carry is done
 			Long cnt = lastLoot.get(e.getKey()); if (cnt != null && cnt >= at - 3000) continue; // it counted: the boss died first
 			clientDied(c, (String) e.getValue()[1], true);
 		}
 	}
-	/** Bosses that vanished with health left: checked a moment later (a Voidgloom swaps its tag between phases). */
-	static final Map<String, Object[]> failing = new HashMap<>(); // player → {time, pos, health %}
-	static void maybeFailed(Minecraft mc, Boss b, long now) {
-		if (b.owner == null || b.pos == null || burrowed(b) || mc.player.position().distanceTo(b.pos) > 32) return;
-		Carry c = find(b.owner, "slayer"); if (c == null) return;
-		int pct = b.firstHp > 0 && b.lastHp >= 0 ? (int) Math.round(100 * b.lastHp / b.firstHp) : -1;
-		failing.put(c.player.toLowerCase(Locale.ROOT), new Object[]{now, b.pos, pct});
-	}
-	static void failTick(Minecraft mc, long now) {
-		if (failing.isEmpty()) return;
-		for (Iterator<Map.Entry<String, Object[]>> it = failing.entrySet().iterator(); it.hasNext(); ) {
-			var e = it.next(); long at = (Long) e.getValue()[0]; if (now - at < 1500) continue;
-			it.remove();
-			Carry c = find(e.getKey(), "slayer"); if (c == null || now - c.diedAt < 8000) continue; // the death line already warned
-			if (bossOf(c.player) != null) continue; // the same boss under a new tag
-			Vec3 pos = (Vec3) e.getValue()[1]; boolean near = false;
-			for (var p : mc.level.players()) if (p.getGameProfile().name().equalsIgnoreCase(c.player) && p.isAlive() && p.position().distanceTo(pos) < 40) near = true;
-			if (near) continue; // they're still there: the quest ran out of time, or it isn't a death
-			int pct = (Integer) e.getValue()[2];
-			clientDied(c, "their boss vanished" + (pct >= 0 ? " with " + pct + "% health left" : "") + " and so did they (died, or left the lobby)", false);
-		}
-	}
+	/** when each client last died with a boss up (whichever of their carries it was) */
+	static final Map<String, Long> diedBy = new HashMap<>();
 	static void clientDied(Carry c, String reason, boolean sure) {
 		long now = System.currentTimeMillis(); if (now - c.diedAt < 5000) return;
-		c.diedAt = now; c.deaths++;
-		refused.put(c.player.toLowerCase(Locale.ROOT), now); deathClaims.add(c.player.toLowerCase(Locale.ROOT)); // [count 1 anyway] / /gcounter claim counts it
+		c.diedAt = now; c.deaths++; diedBy.put(c.player.toLowerCase(Locale.ROOT), now);
+		refused.put(c.player.toLowerCase(Locale.ROOT), now); refusedCarry.put(c.player.toLowerCase(Locale.ROOT), c); deathClaims.add(c.player.toLowerCase(Locale.ROOT)); // [count 1 anyway] / /gcounter claim counts it
 		if (!D.deathWarn) return;
 		Minecraft mc = Minecraft.getInstance(); if (mc.player == null) return;
 		MutableComponent any = Component.literal(" [count 1 anyway]").withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD).withStyle(st -> st
@@ -547,13 +590,13 @@ public final class Counter {
 	static void spawnTick(long now) {
 		for (Carry c : D.carries) {
 			if (!c.kind.equals("slayer")) continue;
-			String k = c.player.toLowerCase(Locale.ROOT); boolean up = bossOf(c.player) != null;
-			if (!up) { upSince.remove(k); continue; }
-			if (upSince.containsKey(k)) continue;
-			upSince.put(k, now);
-			Long last = spawnSaidAt.get(k), counted = lastLoot.get(k);
-			boolean fresh = last == null || now - last > 10_000 || (counted != null && counted > last) || c.diedAt > last;
-			if (!fresh || (counted != null && now - counted < GHOST_MS)) continue;
+			String k = c.player.toLowerCase(Locale.ROOT), uk = k + "|" + c.type + "|" + c.tier; boolean up = bossUp(c);
+			if (!up) { upSince.remove(uk); continue; }
+			if (upSince.containsKey(uk)) continue;
+			upSince.put(uk, now);
+			Long last = spawnSaidAt.get(k), counted = lastLoot.get(k); Fight ft = fights.get(k);
+			if (ft != null) { if (ft.said) continue; ft.said = true; if (counted != null && now - counted < GHOST_MS) continue; } // once a fight: an Inferno back from its demons hasn't spawned again
+			else { boolean fresh = last == null || now - last > 10_000 || (counted != null && counted > last) || c.diedAt > last; if (!fresh || (counted != null && now - counted < GHOST_MS)) continue; }
 			spawnSaidAt.put(k, now);
 			if (D.spawnLine) { spawnSaid = poss(c.player) + " " + c.label() + " spawned."; info(spawnSaid, ChatFormatting.GOLD); }
 		}
@@ -563,7 +606,8 @@ public final class Counter {
 	public static boolean bossUp(Carry c) {
 		if (c == null || !c.kind.equals("slayer")) return false;
 		long now = System.currentTimeMillis(); Long cnt = lastLoot.get(c.player.toLowerCase(Locale.ROOT));
-		for (Boss b : bosses.values()) if (b.owner != null && b.owner.equalsIgnoreCase(c.player) && b.goneAt == 0 && now - b.seen < 1500 && !(cnt != null && b.spawnAt > cnt && now - cnt < GHOST_MS)) return true;
+		for (Boss b : bosses.values()) if (b.owner != null && b.owner.equalsIgnoreCase(c.player) && b.goneAt == 0 && now - b.seen < 1500 && !(cnt != null && b.spawnAt > cnt && now - cnt < GHOST_MS)
+			&& (b.type == null || (b.type.equals(c.type) && Objects.equals(b.tier, c.tier)))) return true; // (the boss of this carry, not of another they have)
 		return false;
 	}
 
@@ -572,7 +616,7 @@ public final class Counter {
 		if (tag instanceof LivingEntity && !(tag instanceof ArmorStand)) b.mobId = tag.getId(); // the name is on the mob itself
 		else if (b.mobId < 0 || !(mc.level.getEntity(b.mobId) instanceof LivingEntity)) { Entity m = mobUnder(mc, tag, b.type); if (m != null) b.mobId = m.getId(); }
 		if (b.mobId >= 0 && mc.level.getEntity(b.mobId) instanceof LivingEntity le) {
-			if (le.isDeadOrDying()) b.dyingAt = now;
+			if (le.isDeadOrDying()) { b.dyingAt = now; if (b.dyingFrom == 0) b.dyingFrom = now; } else b.dyingFrom = 0;
 			if (b.hitAt == 0 && le.hurtTime > 0) b.hitAt = now; // it flinched: the first hit (abilities too, not only left clicks)
 		}
 	}
@@ -595,7 +639,9 @@ public final class Counter {
 	 *  has only one boss at a time, so theirs must have appeared after their last count). */
 	static void died(Minecraft mc, Boss b, long now) {
 		if (b.owner == null || b.counted > 0 || b.type == null || b.pos == null) return;
-		if (!killed(mc, b, now)) { if (!b.guessed) maybeFailed(mc, b, now); return; } // gone with health left: despawned (quest failed, they died), or you walked off
+		// not seen dying, and the same client's boss is still up under another tag: the tag was swapped, nothing died
+		if (!dying(mc, b, now)) for (Boss o : bosses.values()) if (o != b && o.owner != null && o.owner.equalsIgnoreCase(b.owner) && o.goneAt == 0 && now - o.seen < 300 && Objects.equals(o.type, b.type)) return;
+		if (!killed(mc, b, now)) return; // gone with health left: despawned (quest failed, they died), an Inferno gone for its demons, or you walked off
 		// you died as it died and were taken away: where you stood counts, and only a boss that was seen dying (a low one may have lived)
 		boolean jumped = jumpFrom != null && now - jumpAt < 3000;
 		if (jumped && !dying(mc, b, now)) return;
@@ -603,7 +649,7 @@ public final class Counter {
 		Carry booked = null, any = null;
 		for (Carry k : D.carries) if (k.player.equalsIgnoreCase(b.owner) && k.kind.equals("slayer")) { if (any == null) any = k; if (b.type.equals(k.type) && (b.tier == null || b.tier.equals(k.tier))) { booked = k; break; } }
 		if (any == null) return; // not one of your clients
-		if (any.diedAt > 0 && now - any.diedAt < 5000 && !dying(mc, b, now)) return; // they died first and it went with them: not a kill
+		{ Long dd = diedBy.get(any.player.toLowerCase(Locale.ROOT)); if (dd != null && now - dd < 5000 && !dying(mc, b, now)) return; } // they died first and it went with them: not a kill
 		String lk = any.player.toLowerCase(Locale.ROOT); Long last = lastLoot.get(lk);
 		if (last != null && b.spawnAt <= last + 500) { b.counted = last; return; } // the boss that already counted, under a new tag
 		// the boss that just counted, its tags shown again for a moment as it dies: nobody spawns and kills another one within seconds
@@ -614,7 +660,7 @@ public final class Counter {
 		if (booked == null) { b.counted = now; refuse(any, "it was a " + SLAYER_NAMES.getOrDefault(b.type, b.type) + " T" + b.tier + ", not their " + any.label(), now); return; }
 		if (booked.done >= booked.total) return;
 		b.counted = now; lastLoot.put(lk, now);
-		long kill = b.seen, sk = b.spawnAt > 0 && kill > b.spawnAt ? kill - b.spawnAt : 0, hk = b.hitAt > 0 && kill >= b.hitAt ? kill - b.hitAt : 0; // b.seen: the last moment it was alive
+		long kill = killAt(b), sk = b.spawnAt > 0 && kill > b.spawnAt ? kill - b.spawnAt : 0, hk = b.hitAt > 0 && kill >= b.hitAt ? kill - b.hitAt : 0; // when it died (its name tag lingers a moment after)
 		if (sk > 0 || hk > 0) KillText.show(b.pos, secs(hk > 0 ? hk : sk)); // where it died: first hit → kill (spawn → kill if no hit was seen)
 		count(booked, "", sk, hk);
 	}
@@ -686,9 +732,11 @@ public final class Counter {
 
 	// ---------- dungeons and Kuudra ----------
 	static void startMsg(String kind, String tier, Set<String> here) {
-		for (Carry c : D.carries) if (c.kind.equals(kind) && here.contains(c.player.toLowerCase(Locale.ROOT)))
+		for (Carry c : D.carries) if (c.kind.equals(kind) && here.contains(c.player.toLowerCase(Locale.ROOT)) && (c.tier.equals(tier) || !booked(c.player, kind, tier)))
 			progress((c.tier.equals(tier) ? "Run started for " : "Run started, but it isn't the booked " + c.label() + " for ") + c.player + (c.tier.equals(tier) ? " [" + c.label() + "]" : ""), c.tier.equals(tier) ? ChatFormatting.GRAY : ChatFormatting.GOLD);
 	}
+	/** whether this client has a carry of this kind for this floor or tier (they may have several) */
+	static boolean booked(String player, String kind, String tier) { if (tier != null) for (Carry c : D.carries) if (c.kind.equals(kind) && c.player.equalsIgnoreCase(player) && c.tier.equals(tier)) return true; return false; }
 	static void dungeonWin() {
 		String floor = dungeonFloor == null ? null : dungeonFloor.toLowerCase(Locale.ROOT);
 		Set<String> now = present();
@@ -696,7 +744,7 @@ public final class Counter {
 			if (!c.kind.equals("dungeon")) continue;
 			String p = c.player.toLowerCase(Locale.ROOT);
 			if (!dungeonStart.contains(p) || !now.contains(p)) continue;
-			if (floor == null || !floor.equals(c.tier)) { progress("Run finished for " + c.player + " but it was " + (floor == null ? "an unknown floor" : floor.toUpperCase(Locale.ROOT)) + ", not " + c.label() + ": not counted.", ChatFormatting.GOLD); continue; }
+			if (floor == null || !floor.equals(c.tier)) { if (!booked(c.player, "dungeon", floor)) progress("Run finished for " + c.player + " but it was " + (floor == null ? "an unknown floor" : floor.toUpperCase(Locale.ROOT)) + ", not " + c.label() + ": not counted.", ChatFormatting.GOLD); continue; }
 			count(c, "");
 		}
 	}
@@ -706,7 +754,7 @@ public final class Counter {
 			if (!c.kind.equals("kuudra")) continue;
 			String p = c.player.toLowerCase(Locale.ROOT);
 			if (!kuudraStart.contains(p) || !now.contains(p)) continue;
-			if (kuudraTier == null || !kuudraTier.equals(c.tier)) { progress("Kuudra finished for " + c.player + " but it was " + (kuudraTier == null ? "an unknown tier" : KUUDRA_NAMES[Integer.parseInt(kuudraTier)]) + ", not " + c.label() + ": not counted.", ChatFormatting.GOLD); continue; }
+			if (kuudraTier == null || !kuudraTier.equals(c.tier)) { if (!booked(c.player, "kuudra", kuudraTier)) progress("Kuudra finished for " + c.player + " but it was " + (kuudraTier == null ? "an unknown tier" : KUUDRA_NAMES[Integer.parseInt(kuudraTier)]) + ", not " + c.label() + ": not counted.", ChatFormatting.GOLD); continue; }
 			count(c, "");
 		}
 	}
@@ -747,8 +795,16 @@ public final class Counter {
 	}
 	/** Said once and never shown: said again - with other clients' counts waiting behind it too - unless a newer count
 	 *  for the same player is already waiting (that one says more). */
-	static final Pattern ANN_WHO = Pattern.compile("(\\w{1,16}) \\d+/\\d+ - Grimoire$");
-	static String annWho(String line) { Matcher m = ANN_WHO.matcher(line); return m.find() ? m.group(1) : line; }
+	static final Pattern ANN_WHO = Pattern.compile("(\\w{1,16}) \\d+/\\d+((?: [^-]+)?) - Grimoire$");
+	static String annWho(String line) { Matcher m = ANN_WHO.matcher(line); return m.find() ? m.group(1) + m.group(2) : line; }
+	/** "T2 (Blaze)", "F7 (Dungeon)", "Infernal (Kuudra)": which of a client's several carries a count is for */
+	static String which(Carry c) {
+		return switch (c.kind) {
+			case "kuudra" -> KUUDRA_NAMES[Integer.parseInt(c.tier)] + " (Kuudra)";
+			case "dungeon" -> (c.tier.equals("e") ? "Entrance" : c.tier.toUpperCase(Locale.ROOT)) + " (Dungeon)";
+			default -> "T" + c.tier + " (" + (c.type.equals("blaze") ? "Blaze" : SLAYER_NAMES.getOrDefault(c.type, c.type)) + ")";
+		};
+	}
 	static boolean sayAgain() {
 		if (annSent == null || annTries >= 2) return false;
 		String who = annWho(annSent);
@@ -763,7 +819,7 @@ public final class Counter {
 	/** your own words for a boss counted though its client died: said before the count, "your words / Name 3/10 - Grimoire" */
 	static String annPrefix = null; static final Set<String> deathClaims = new HashSet<>();
 	static void announceCount(Carry c) {
-		String base = c.player + " " + c.done + "/" + c.total + " - Grimoire";
+		String base = c.player + " " + c.done + "/" + c.total + (c.several ? " " + which(c) : "") + " - Grimoire";
 		if (annPrefix != null) announce(annPrefix + " / " + base); else if (D.announce) announce(base);
 	}
 

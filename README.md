@@ -18,6 +18,9 @@ clicks, aims or moves for you.
 
 - **Counting by itself**, with the rules above (the same ones as in Grimoire).
 - **Counting by hand** on its page: − and + for every carry, more or fewer ordered, remove.
+- **Several carries for one client**: a T2 and a T3, a slayer and a dungeon floor - each counts only its own boss,
+  tier or floor, and the count in party chat says which: `Name 1/1 T2 (Blaze) - Grimoire`. The kind of each carry
+  can be changed on the page: click it for the whole list.
 - **Your own bosses**: add yourself as the client and each "SLAYER QUEST COMPLETE!" in your chat counts one, if the
   quest on your scoreboard is the boss and tier being counted. A switch turns it off.
 - **A price list** with a row for every carry it counts (every slayer tier, every Kuudra tier, Entrance to M7): your
@@ -30,7 +33,7 @@ clicks, aims or moves for you.
   a sound - so you know the boss is gone and they need to spawn a new one. The line has a [count 1 anyway] button,
   and you can set your own words to be said in party chat when you press it: `your words / Name 3/10 - Grimoire`.
   A client who dies after their boss did loses nothing: it still counts, with its kill time.
-- **The count in party chat** (off until you turn it on): `Name 3/10 - Grimoire`, each time a carry counts.
+- **The count in party chat** (on; it has its own switch): `Name 3/10 - Grimoire`, each time a carry counts.
 - **The counter on screen**, which you can drag anywhere and size.
 - A switch for each of these.
 

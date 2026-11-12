@@ -131,8 +131,8 @@ final class CounterSelfTest {
 		dc.diedAt = 0; Counter.lastLoot.put("alex", System.currentTimeMillis()); Counter.handle(" ☠ Alex was killed by Voidgloom Seraph."); check("died after their boss counted: no warning", dc.deaths == 2);
 		Counter.lastLoot.clear(); Counter.Boss db = new Counter.Boss(); db.owner = "Alex"; db.type = "void"; db.tier = "4"; db.seen = System.currentTimeMillis(); db.spawnAt = db.seen - 9000; db.dyingAt = db.seen; Counter.bosses.put(-78, db);
 		Counter.handle(" ☠ Alex burned to death."); check("died while their boss was dying: held back", dc.deaths == 2 && Counter.dyingDeaths.containsKey("alex"));
-		Counter.lastLoot.put("alex", System.currentTimeMillis()); Counter.deathTick(System.currentTimeMillis() + 2000); check("that boss counted: never warned", dc.deaths == 2 && Counter.dyingDeaths.isEmpty());
-		Counter.lastLoot.clear(); Counter.handle(" ☠ Alex burned to death."); Counter.deathTick(System.currentTimeMillis() + 2000); check("that boss didn't count: warned after all", dc.deaths == 3);
+		Counter.lastLoot.put("alex", System.currentTimeMillis()); Counter.deathTick(System.currentTimeMillis() + 3500); check("that boss counted: never warned", dc.deaths == 2 && Counter.dyingDeaths.isEmpty());
+		Counter.lastLoot.clear(); Counter.handle(" ☠ Alex burned to death."); Counter.deathTick(System.currentTimeMillis() + 3500); check("that boss didn't count: warned after all", dc.deaths == 3);
 		Counter.bosses.clear(); int before = done("Alex"); check("[count 1 anyway] counts one", Counter.claim("Alex") && done("Alex") == before + 1);
 		Counter.annQ.clear(); Counter.annSent = null; Counter.D.announce = false; Counter.D.deathMsg = "you died, counted anyway"; dc.diedAt = 0; Counter.lastLoot.clear();
 		Counter.handle(" ☠ Alex was killed by Voidgloom Seraph."); before = done("Alex"); Counter.claim("Alex");

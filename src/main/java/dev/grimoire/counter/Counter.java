@@ -558,7 +558,7 @@ public final class Counter {
 	static void deathTick(long now) {
 		if (dyingDeaths.isEmpty()) return;
 		for (Iterator<Map.Entry<String, Object[]>> it = dyingDeaths.entrySet().iterator(); it.hasNext(); ) {
-			var e = it.next(); long at = (Long) e.getValue()[0]; if (now - at < 1500) continue;
+			var e = it.next(); long at = (Long) e.getValue()[0]; if (now - at < 3000) continue; // (a dying boss's name tag lingers a second or so before it goes and the boss counts)
 			it.remove();
 			Carry c = slayerNow(e.getKey()); if (c == null) continue; // their last one: it counted and the carry is done
 			Long cnt = lastLoot.get(e.getKey()); if (cnt != null && cnt >= at - 3000) continue; // it counted: the boss died first

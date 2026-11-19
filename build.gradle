@@ -9,14 +9,34 @@ dependencies {
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 }
+// one source for every Minecraft it's built for: names Minecraft moved or renamed are listed in src/mc<version>/remap.txt
+// ("old => new", one a line) and that version compiles a copy of the source with them swapped. The other version is built
+// from a folder of its own with its own gradle.properties (minecraft_version, loader_version, fabric_api_version).
+def mcShort = project.minecraft_version.replace('.', '')
+def remapFile = file("src/mc${mcShort}/remap.txt")
+if (remapFile.exists()) {
+	def remapped = layout.buildDirectory.dir('remapped/java').get().asFile
+	def pairs = remapFile.readLines().findAll { it.contains(' => ') && !it.startsWith('#') }.collect { it.split(' => ', 2)*.trim() }
+	tasks.register('remapSources', Sync) {
+		from 'src/main/java'
+		into remapped
+		inputs.file remapFile
+		filteringCharset = 'UTF-8'
+		filter { String line -> String s = line; pairs.each { p -> s = s.replace(p[0], p[1]) }; s }
+	}
+	sourceSets.main.java.srcDirs = [remapped]
+	compileJava.dependsOn 'remapSources'
+}
 processResources {
 	def version = project.version
+	def mcv = project.minecraft_version
 	inputs.property "version", version
-	filesMatching("fabric.mod.json") { expand "version": version }
+	inputs.property "mc", mcv
+	filesMatching("fabric.mod.json") { expand "version": version, "mc": mcv }
 }
 tasks.withType(JavaCompile).configureEach { it.options.release = 25; it.options.encoding = 'UTF-8' }
 java { sourceCompatibility = JavaVersion.VERSION_25; targetCompatibility = JavaVersion.VERSION_25 }
-base { archivesName = 'grimoire-counter' }
+base { archivesName = project.minecraft_version == '26.2' ? 'grimoire-counter' : 'grimoire-counter-mc' + project.minecraft_version }
 jar {
 	from('LICENSE.txt')
 	manifest { attributes('Implementation-Title': 'Grimoire Counter', 'Implementation-Version': project.version, 'Implementation-Vendor': 'Yggdrasjll', 'Created-By': 'Yggdrasjll', 'Copyright': '(c) 2026 Yggdrasjll. All rights reserved.') }

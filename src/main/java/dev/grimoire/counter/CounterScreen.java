@@ -4,6 +4,7 @@
  */
 package dev.grimoire.counter;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -13,7 +14,6 @@ import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +24,7 @@ import java.util.Locale;
  * "Move the counter" lets you drag the counter where you want it on screen (the wheel sizes it).
  */
 public final class CounterScreen extends Screen {
-	static final int GILT = 0xFFFFD45C, MOSS = 0xFF7FCF6A, MINT = 0xFF8CF0C8, EDGE = 0xFF2A3A62, TEXT = 0xFFEFE8D4, MUTED = 0xFF93A3BD, DIM = 0xFF6F7F9C, RED = 0xFFFF7A7A, ORANGE = 0xFFFFA238;
+	static final int GILT = 0xFFFFD45C, MOSS = 0xFF7FCF6A, MINT = 0xFF8CF0C8, EDGE = 0xFF2A3A62, TEXT = 0xFFEFE8D4, MUTED = 0xFF93A3BD, DIM = 0xFF6F7F9C, ORANGE = 0xFFFFA238;
 	static int alpha(int c, int a) { return (Math.max(0, Math.min(255, a)) << 24) | (c & 0xFFFFFF); }
 	static boolean in(double mx, double my, int x, int y, int w, int h) { return mx >= x && mx < x + w && my >= y && my < y + h; }
 	static String clip(Font f, String s, int w) { if (s == null || w <= 0) return ""; if (f.width(s) <= w) return s; return f.plainSubstrByWidth(s, Math.max(0, w - f.width("…"))) + "…"; }
@@ -293,25 +293,25 @@ public final class CounterScreen extends Screen {
 	}
 	@Override public boolean keyPressed(KeyEvent e) {
 		int k = e.key();
-		if (moving) { if (k == GLFW.GLFW_KEY_ESCAPE || k == GLFW.GLFW_KEY_ENTER || k == GLFW.GLFW_KEY_KP_ENTER) { moving = false; dragging = false; Counter.save(); } return true; }
-		if (pick != null) { if (k == GLFW.GLFW_KEY_ESCAPE) pick = null; return true; } // the list is open: Esc leaves it
+		if (moving) { if (k == InputConstants.KEY_ESCAPE || k == InputConstants.KEY_RETURN || k == InputConstants.KEY_NUMPADENTER) { moving = false; dragging = false; Counter.save(); } return true; }
+		if (pick != null) { if (k == InputConstants.KEY_ESCAPE) pick = null; return true; } // the list is open: Esc leaves it
 		if (focus != null) {
 			String v = value(focus); int len = v.length(); caret = Math.max(0, Math.min(len, caret)); anchor = Math.max(0, Math.min(len, anchor));
 			int a = Math.min(caret, anchor), b = Math.max(caret, anchor); boolean shift = e.hasShiftDown(), ctrl = e.hasControlDown();
-			if (k == GLFW.GLFW_KEY_ESCAPE) { focus = null; Counter.save(); return true; }
-			if (k == GLFW.GLFW_KEY_ENTER || k == GLFW.GLFW_KEY_KP_ENTER) { if (focus.equals("name") || focus.equals("amount")) addNow(); else { focus = null; Counter.save(); } return true; }
-			if (k == GLFW.GLFW_KEY_TAB) { if (focus.equals("name")) focusOn("amount"); else if (focus.equals("amount")) focusOn("name"); return true; }
+			if (k == InputConstants.KEY_ESCAPE) { focus = null; Counter.save(); return true; }
+			if (k == InputConstants.KEY_RETURN || k == InputConstants.KEY_NUMPADENTER) { if (focus.equals("name") || focus.equals("amount")) addNow(); else { focus = null; Counter.save(); } return true; }
+			if (k == InputConstants.KEY_TAB) { if (focus.equals("name")) focusOn("amount"); else if (focus.equals("amount")) focusOn("name"); return true; }
 			// the keys every text bar answers to: select all, copy, cut, paste; the arrows, Home and End (Shift selects); Backspace and Delete
 			if (e.isSelectAll()) { anchor = 0; caret = len; return true; }
 			if (e.isCopy()) { if (a != b) Minecraft.getInstance().keyboardHandler.setClipboard(v.substring(a, b)); return true; }
 			if (e.isCut()) { if (a != b) { Minecraft.getInstance().keyboardHandler.setClipboard(v.substring(a, b)); edit(a, b, ""); } return true; }
 			if (e.isPaste()) { String clip = Minecraft.getInstance().keyboardHandler.getClipboard(); edit(a, b, clip == null ? "" : clip.replace("\n", " ").replace("\r", "")); return true; }
-			if (k == GLFW.GLFW_KEY_LEFT) { caret = !shift && a != b ? a : ctrl ? 0 : Math.max(0, caret - 1); if (!shift) anchor = caret; return true; }
-			if (k == GLFW.GLFW_KEY_RIGHT) { caret = !shift && a != b ? b : ctrl ? len : Math.min(len, caret + 1); if (!shift) anchor = caret; return true; }
-			if (k == GLFW.GLFW_KEY_HOME || k == GLFW.GLFW_KEY_UP) { caret = 0; if (!shift) anchor = caret; return true; }
-			if (k == GLFW.GLFW_KEY_END || k == GLFW.GLFW_KEY_DOWN) { caret = len; if (!shift) anchor = caret; return true; }
-			if (k == GLFW.GLFW_KEY_BACKSPACE) { if (a != b) edit(a, b, ""); else if (caret > 0) edit(ctrl ? 0 : caret - 1, caret, ""); return true; }
-			if (k == GLFW.GLFW_KEY_DELETE) { if (a != b) edit(a, b, ""); else if (caret < len) edit(caret, ctrl ? len : caret + 1, ""); return true; }
+			if (k == InputConstants.KEY_LEFT) { caret = !shift && a != b ? a : ctrl ? 0 : Math.max(0, caret - 1); if (!shift) anchor = caret; return true; }
+			if (k == InputConstants.KEY_RIGHT) { caret = !shift && a != b ? b : ctrl ? len : Math.min(len, caret + 1); if (!shift) anchor = caret; return true; }
+			if (k == InputConstants.KEY_HOME || k == InputConstants.KEY_UP) { caret = 0; if (!shift) anchor = caret; return true; }
+			if (k == InputConstants.KEY_END || k == InputConstants.KEY_DOWN) { caret = len; if (!shift) anchor = caret; return true; }
+			if (k == InputConstants.KEY_BACKSPACE) { if (a != b) edit(a, b, ""); else if (caret > 0) edit(ctrl ? 0 : caret - 1, caret, ""); return true; }
+			if (k == InputConstants.KEY_DELETE) { if (a != b) edit(a, b, ""); else if (caret < len) edit(caret, ctrl ? len : caret + 1, ""); return true; }
 			return true;
 		}
 		return super.keyPressed(e);

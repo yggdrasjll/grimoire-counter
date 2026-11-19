@@ -215,7 +215,7 @@ public final class Counter {
 	/** When an owner line was last seen next to any boss (yours or a stranger's). */
 	static long anyOwnerLineAt = 0;
 
-	static final class Boss { String owner, type, tier, name; double firstHp = -1, lastHp = -1; Vec3 pos; long seen, counted, goneAt, spawnAt, hitAt, dyingAt, dyingFrom, zeroAt; int tagId, mobId = -1; boolean guessed; }
+	static final class Boss { String owner, type, tier; double firstHp = -1, lastHp = -1; Vec3 pos; long seen, counted, goneAt, spawnAt, hitAt, dyingAt, dyingFrom, zeroAt; int mobId = -1; boolean guessed; }
 	static final Map<Integer, Boss> bosses = new HashMap<>();
 	static String dungeonFloor = null; static Set<String> dungeonStart = new HashSet<>(); static long dungeonEndAt = 0; static boolean dungeonStarted = false;
 	static String kuudraTier = null; static Set<String> kuudraStart = new HashSet<>(); static boolean kuudraStarted = false;
@@ -326,17 +326,17 @@ public final class Counter {
 		String tagText = Tags.plain(tag); if (tagText == null) return false;
 		Matcher tm = BOSS_TAG.matcher(tagText);
 		String hpText;
-		if (tm.find()) { b.name = tm.group(1); b.type = BOSS_TYPE.get(tm.group(1)); b.tier = tm.group(2) == null ? "5" : String.valueOf(roman(tm.group(2))); hpText = tm.group(3); }
+		if (tm.find()) { b.type = BOSS_TYPE.get(tm.group(1)); b.tier = tm.group(2) == null ? "5" : String.valueOf(roman(tm.group(2))); hpText = tm.group(3); }
 		else {
 			// a Jerry-skinned boss: the tag doesn't say which slayer it is, so the client's carry tells
 			Matcher jm = JERRY_TAG.matcher(tagText); if (!jm.find()) return false;
 			Carry cc = find(b.owner, "slayer");
-			b.name = cc != null ? SLAYER_NAMES.getOrDefault(cc.type, "Slayer boss") : "Slayer boss"; b.type = cc != null ? cc.type : "void"; b.tier = cc != null ? cc.tier : "5"; hpText = jm.group(2);
+			b.type = cc != null ? cc.type : "void"; b.tier = cc != null ? cc.tier : "5"; hpText = jm.group(2);
 		}
 		double hp = hp(hpText); { double mx = hpMax(hpText); if (mx > 0 && mx > b.firstHp) b.firstHp = mx; } // (a tag that says what it started with: its health is known from the first look)
 		if (hp >= 0) { if (b.firstHp < 0 || hp > b.firstHp) b.firstHp = hp; if (b.hitAt == 0 && b.firstHp > 0 && hp < b.firstHp) b.hitAt = now; b.lastHp = hp; }
 		if (hp == 0 && b.firstHp > 0) { if (b.zeroAt == 0) b.zeroAt = now; } else if (hp > 0) b.zeroAt = 0; // the moment its health read nothing left
-		b.seen = now; b.tagId = tag.getId();
+		b.seen = now;
 		fight(b, now);
 		return true;
 	}

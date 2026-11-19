@@ -13,7 +13,7 @@
   "mixins": ["grimoire_counter.mixins.json"],
   "depends": {
     "fabricloader": ">=0.19.5",
-    "minecraft": "~26.2",
+    "minecraft": "~${mc}",
     "java": ">=25",
     "fabric-api": "*"
   }

@@ -17,6 +17,8 @@ import java.util.Set;
  * of an owner line and a boss tag, a price list. It works on a counter of its own: nothing of yours is read or saved.
  */
 final class CounterSelfTest {
+	/** a key press as the game hands it on: key, scancode, modifiers (26.3: the key from its scancode, see src/mc263/remap.txt) */
+	static net.minecraft.client.input.KeyEvent key(int k, int mods) { return new net.minecraft.client.input.KeyEvent(k, 0, mods); }
 	private CounterSelfTest() {}
 	static int t = 0; static final List<String> fails = new ArrayList<>(); static int checks = 0;
 	static void check(String what, boolean ok) { checks++; if (!ok) fails.add(what); }
@@ -191,20 +193,20 @@ final class CounterSelfTest {
 		Counter.lastCopied = null; Counter.D.copyCount = false; Counter.Carry off = Counter.add("Efe", Counter.parse("void", "4"), 1); Counter.plus(off); check("copying switched off: nothing copied", Counter.lastCopied == null); Counter.D.copyCount = true;
 		// the text bars: typing, select all, copy, cut, paste, the arrows, Backspace and Delete
 		CounterScreen cs = new CounterScreen(); CounterScreen.addName = ""; CounterScreen.addAmount = "1"; cs.focusOn("name");
-		int CTRL = org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL, SHIFT = org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;
+		int CTRL = com.mojang.blaze3d.platform.InputConstants.MOD_CONTROL, SHIFT = com.mojang.blaze3d.platform.InputConstants.MOD_SHIFT;
 		for (char ch : "Al ex!".toCharArray()) cs.charTyped(new net.minecraft.client.input.CharacterEvent(ch));
 		check("typing takes only what a name takes", CounterScreen.addName.equals("Alex"));
-		cs.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_A, 0, CTRL)); check("Ctrl+A selects everything", cs.anchor == 0 && cs.caret == 4);
-		cs.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_C, 0, CTRL)); check("Ctrl+C copies it", "Alex".equals(net.minecraft.client.Minecraft.getInstance().keyboardHandler.getClipboard()));
+		cs.keyPressed(key(com.mojang.blaze3d.platform.InputConstants.KEY_A, CTRL)); check("Ctrl+A selects everything", cs.anchor == 0 && cs.caret == 4);
+		cs.keyPressed(key(com.mojang.blaze3d.platform.InputConstants.KEY_C, CTRL)); check("Ctrl+C copies it", "Alex".equals(net.minecraft.client.Minecraft.getInstance().keyboardHandler.getClipboard()));
 		cs.charTyped(new net.minecraft.client.input.CharacterEvent('B')); check("typing replaces the selection", CounterScreen.addName.equals("B"));
-		cs.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_V, 0, CTRL)); check("Ctrl+V pastes at the caret", CounterScreen.addName.equals("BAlex"));
-		cs.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_HOME, 0, 0)); cs.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT, 0, SHIFT)); check("Shift+arrow selects", cs.anchor == 0 && cs.caret == 1);
-		cs.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_X, 0, CTRL)); check("Ctrl+X cuts", CounterScreen.addName.equals("Alex") && "B".equals(net.minecraft.client.Minecraft.getInstance().keyboardHandler.getClipboard()));
-		cs.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_DELETE, 0, 0)); cs.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_END, 0, 0)); cs.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_BACKSPACE, 0, 0));
+		cs.keyPressed(key(com.mojang.blaze3d.platform.InputConstants.KEY_V, CTRL)); check("Ctrl+V pastes at the caret", CounterScreen.addName.equals("BAlex"));
+		cs.keyPressed(key(com.mojang.blaze3d.platform.InputConstants.KEY_HOME, 0)); cs.keyPressed(key(com.mojang.blaze3d.platform.InputConstants.KEY_RIGHT, SHIFT)); check("Shift+arrow selects", cs.anchor == 0 && cs.caret == 1);
+		cs.keyPressed(key(com.mojang.blaze3d.platform.InputConstants.KEY_X, CTRL)); check("Ctrl+X cuts", CounterScreen.addName.equals("Alex") && "B".equals(net.minecraft.client.Minecraft.getInstance().keyboardHandler.getClipboard()));
+		cs.keyPressed(key(com.mojang.blaze3d.platform.InputConstants.KEY_DELETE, 0)); cs.keyPressed(key(com.mojang.blaze3d.platform.InputConstants.KEY_END, 0)); cs.keyPressed(key(com.mojang.blaze3d.platform.InputConstants.KEY_BACKSPACE, 0));
 		check("Delete and Backspace", CounterScreen.addName.equals("le"));
-		cs.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_TAB, 0, 0)); check("Tab goes to the count, all selected", "amount".equals(cs.focus) && cs.anchor == 0 && cs.caret == 1);
-		net.minecraft.client.Minecraft.getInstance().keyboardHandler.setClipboard("1a2b3c4d5"); cs.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_V, 0, CTRL)); check("pasting into the count keeps only digits, four at most", CounterScreen.addAmount.equals("1234"));
-		cs.focusOn("void|4"); cs.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_A, 0, CTRL)); for (char ch : "1.5, 2".toCharArray()) cs.charTyped(new net.minecraft.client.input.CharacterEvent(ch)); check("a price bar the same way", Counter.D.prices.get("void|4").equals("1.5, 2"));
+		cs.keyPressed(key(com.mojang.blaze3d.platform.InputConstants.KEY_TAB, 0)); check("Tab goes to the count, all selected", "amount".equals(cs.focus) && cs.anchor == 0 && cs.caret == 1);
+		net.minecraft.client.Minecraft.getInstance().keyboardHandler.setClipboard("1a2b3c4d5"); cs.keyPressed(key(com.mojang.blaze3d.platform.InputConstants.KEY_V, CTRL)); check("pasting into the count keeps only digits, four at most", CounterScreen.addAmount.equals("1234"));
+		cs.focusOn("void|4"); cs.keyPressed(key(com.mojang.blaze3d.platform.InputConstants.KEY_A, CTRL)); for (char ch : "1.5, 2".toCharArray()) cs.charTyped(new net.minecraft.client.input.CharacterEvent(ch)); check("a price bar the same way", Counter.D.prices.get("void|4").equals("1.5, 2"));
 		CounterScreen.addName = ""; CounterScreen.addAmount = "1";
 		Counter.presentTest = null;
 	}

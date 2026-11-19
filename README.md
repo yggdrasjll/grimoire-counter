@@ -1,6 +1,6 @@
 # Grimoire Counter
 
-Grimoire's carry counter as a mod of its own, for Hypixel SkyBlock on Minecraft: Java Edition 26.2 (Fabric).
+Grimoire's carry counter as a mod of its own, for Hypixel SkyBlock on Minecraft: Java Edition 26.2 and 26.3 (Fabric).
 Made and owned by **Yggdrasjll**. All rights reserved: see [LICENSE.txt](LICENSE.txt).
 
 It counts what you carry for each client, and only when Hypixel itself confirms it:
@@ -57,15 +57,18 @@ With Grimoire itself installed, Grimoire Counter stays off: Grimoire already has
 
 ## Installing
 
-The built mod is in this repository's `release` folder: `[Ygg] Grimoire Counter-<version>.jar`.
+The built mod is in this repository's `release` folder, and under Releases: `[Ygg] Grimoire Counter-<version>.jar`
+for Minecraft 26.2 (Release_26.2), `[Ygg] Grimoire Counter-mc26.3-<version>.jar` for 26.3 (Release_26.3).
 
-Needs Fabric Loader 0.19.5 or newer, Fabric API and Java 25. Put `[Ygg] Grimoire Counter-<version>.jar` in your
-`mods` folder.
+Needs Fabric API and Java 25, and Fabric Loader 0.19.5 or newer (26.2) or 0.20.1 or newer (26.3). Put the jar for your
+Minecraft in your `mods` folder.
 
 ## Building
 
-`gradle build` makes the jar in `build/libs`. `gradle runClient -Pselftest` runs the mod's own check of its
-counting rules.
+`gradle build` makes the jar in `build/libs` (Minecraft 26.2). For 26.3, build from a folder of its own holding this
+repository's files and a `gradle.properties` with `minecraft_version=26.3`, `loader_version=0.20.1` and
+`fabric_api_version=0.166.2+26.3`: the names that changed in 26.3 are swapped in from `src/mc263/remap.txt`, so the
+source stays one. `gradle runClient -Pselftest` runs the mod's own check of its counting rules.
 
 ## Not affiliated
 

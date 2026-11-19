@@ -18,7 +18,6 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +43,7 @@ public final class CounterMod implements ClientModInitializer {
 		net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback.EVENT.register((d, ctx) -> d.register(commands()));
 		if (!active) return;
 		KeyMapping.Category cat = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("grimoire_counter", "main"));
-		KeyMapping open = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.grimoire_counter.open", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_K, cat));
+		KeyMapping open = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.grimoire_counter.open", InputConstants.Type.KEYSYM, InputConstants.KEY_K, cat));
 		net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			try { Counter.tick(mc); } catch (Throwable ignored) {}
 			if (SELFTEST) CounterSelfTest.tick(mc);

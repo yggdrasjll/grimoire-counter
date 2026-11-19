@@ -54,7 +54,6 @@ public final class KillText {
 		} catch (Throwable ignored) {}
 	}
 
-	public static int debugCount() { return shown.size(); }
 	/** Every tick: drift up a little, remove when the time is up. */
 	public static void tick() {
 		Minecraft mc = Minecraft.getInstance(); long now = System.currentTimeMillis();

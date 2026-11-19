@@ -1,0 +1,6 @@
+# Grimoire Counter - Copyright (c) 2026 Yggdrasjll. All rights reserved.
+# Not to be copied, modified, decompiled, reused or shared without Yggdrasjll's written permission. See LICENSE.txt.
+# 26.2 => 26.3, one a line: the 26.3 build compiles a copy of the source with these swapped, so the source stays one
+net.minecraft.world.entity.monster.EnderMan => net.minecraft.world.entity.monster.Enderman
+InputConstants.Type.KEYSYM => InputConstants.Type.KEYBOARD
+return new net.minecraft.client.input.KeyEvent(k, 0, mods); => return new net.minecraft.client.input.KeyEvent(k, org.lwjgl.sdl.SDLKeyboard.SDL_GetKeyFromScancode(k, (short) 0, false), mods);
